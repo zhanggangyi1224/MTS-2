@@ -1,0 +1,6 @@
+2025-09-19 02:24:01,208 - src.pipeline - INFO - 🚀 Starting MTS Data Preparation Pipeline
+2025-09-19 02:24:01,208 - src.pipeline - INFO - ============================================================
+2025-09-19 02:24:01,208 - src.pipeline - INFO - STEP 1: DATA LOADING AND INITIAL PROCESSING
+2025-09-19 02:24:01,208 - src.pipeline - INFO - ============================================================
+2025-09-19 02:24:01,208 - src.pipeline - INFO - 📝 Using simulated CCMusic dataset for development
+2025-09-19 02:24:01,243 - src.pipeline - INFO - 🎵 Processing features from dataset...

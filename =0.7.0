@@ -1,0 +1,2 @@
+Requirement already satisfied: pedalboard in /home/gangyiz/.local/lib/python3.10/site-packages (0.9.17)
+Requirement already satisfied: numpy in /apps/easybuild-2022/easybuild/software/MPI/GCC/11.3.0/OpenMPI/4.1.4/SciPy-bundle/2022.05/lib/python3.10/site-packages (from pedalboard) (1.22.3)

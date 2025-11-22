@@ -1,0 +1,5 @@
+Requirement already satisfied: pyrubberband in /home/gangyiz/.local/lib/python3.10/site-packages (0.4.0)
+Requirement already satisfied: numpy>=1.0 in /apps/easybuild-2022/easybuild/software/MPI/GCC/11.3.0/OpenMPI/4.1.4/SciPy-bundle/2022.05/lib/python3.10/site-packages (from pyrubberband) (1.22.3)
+Requirement already satisfied: soundfile>=0.12.1 in /home/gangyiz/.local/lib/python3.10/site-packages (from pyrubberband) (0.13.1)
+Requirement already satisfied: cffi>=1.0 in /home/gangyiz/.local/lib/python3.10/site-packages (from soundfile>=0.12.1->pyrubberband) (1.17.1)
+Requirement already satisfied: pycparser in /home/gangyiz/.local/lib/python3.10/site-packages (from cffi>=1.0->soundfile>=0.12.1->pyrubberband) (2.22)

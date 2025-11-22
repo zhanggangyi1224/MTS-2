@@ -1,0 +1,72 @@
+augmentation:
+  augmentation_factor: 3
+  batch_augmentation: true
+  enabled: true
+  techniques:
+    eq_filter:
+      enabled: true
+      gain_range_db:
+      - -3
+      - 3
+      probability: 0.3
+    noise_addition:
+      enabled: true
+      probability: 0.4
+      snr_db_range:
+      - 20
+      - 40
+    pitch_shift:
+      enabled: true
+      probability: 0.8
+      range_semitones:
+      - -2
+      - 2
+    reverb:
+      enabled: true
+      probability: 0.25
+    tempo_scale:
+      enabled: true
+      probability: 0.8
+      range_factor:
+      - 0.9
+      - 1.1
+batch_processing:
+  batch_size: 100
+  checkpoint_dir: ./checkpoints
+  cleanup_frequency: 10
+  max_memory_percent: 75.0
+  resume_from_checkpoint: true
+  save_intermediate: true
+data:
+  cache_dir: ./cache
+  data_dir: ./data
+  huggingface_token: null
+  output_dir: ./outputs
+  target_sample_rate: 22050
+  use_simulated_data: true
+data_organization:
+  random_state: 42
+  stratify_by_genre: true
+  test_ratio: 0.1
+  train_ratio: 0.8
+  val_ratio: 0.1
+logging:
+  console_output: true
+  level: INFO
+  memory_logging: true
+  save_logs: true
+memory_optimization:
+  batch_size_auto_adjust: true
+  enable_aggressive_gc: true
+  max_batch_size: 500
+  min_batch_size: 10
+structure_processing:
+  create_conditioning_data: true
+  enabled: true
+  structure_subset_size: 300
+text_generation:
+  batch_text_generation: true
+  cache_dir: ./cache/text_models
+  enabled: true
+  model_name: sentence-transformers/all-MiniLM-L6-v2
+  prompt_pool_size: 1000

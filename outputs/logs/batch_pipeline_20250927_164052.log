@@ -1,0 +1,10 @@
+2025-09-27 16:40:52,026 - batch_processor - INFO - 🚀 Starting MTS Batch Pipeline
+2025-09-27 16:40:52,026 - batch_processor - INFO -    Batch size: 100
+2025-09-27 16:40:52,026 - batch_processor - INFO -    Max memory: 75.0%
+2025-09-27 16:40:52,026 - batch_processor - INFO - ============================================================
+2025-09-27 16:40:52,026 - batch_processor - INFO - STEP 1: BATCH DATA LOADING
+2025-09-27 16:40:52,026 - batch_processor - INFO - ============================================================
+2025-09-27 17:33:09,701 - batch_processor - INFO - ✅ Data loading complete: 1700 songs
+2025-09-27 17:33:09,702 - batch_processor - INFO - ============================================================
+2025-09-27 17:33:09,702 - batch_processor - INFO - STEP 2: BATCH AUGMENTATION
+2025-09-27 17:33:09,702 - batch_processor - INFO - ============================================================
