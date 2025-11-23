@@ -21,6 +21,9 @@ augmentation:
   enabled: true
   augmentation_factor: 3            # Create 3x more data
   batch_augmentation: true          # Process augmentation in batches
+  save_audio: true                  # Write augmented audio files
+  audio_format: "mp4"               # wav|mp3|mp4 (mp3/mp4 require ffmpeg)
+  suppress_warnings: true           # Quiet fallback warnings during augmentation
   
   techniques:
     pitch_shift:

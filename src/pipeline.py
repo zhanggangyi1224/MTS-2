@@ -297,7 +297,8 @@ class MTSDataPipeline:
         self.augmenter = MTSAudioAugmentation(
             sample_rate=self.config["data"]["target_sample_rate"],
             augmentation_factor=self.config["augmentation"]["augmentation_factor"],
-            preserve_original=self.config["augmentation"]["preserve_original"]
+            preserve_original=self.config["augmentation"]["preserve_original"],
+            suppress_warnings=self.config["augmentation"].get("suppress_warnings", False)
         )
         
         # Update augmentation configuration
@@ -311,7 +312,8 @@ class MTSDataPipeline:
         augmented_songs = self.augmenter.augment_dataset(
             original_songs,
             output_dir=f"{self.config['data']['data_dir']}/augmented",
-            save_audio=False  # Don't save audio files in this implementation
+            save_audio=self.config["augmentation"].get("save_audio", False),
+            audio_format=self.config["augmentation"].get("audio_format", "wav")
         )
         
         # Save augmentation results

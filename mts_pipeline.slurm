@@ -41,8 +41,8 @@ module load tqdm/4.64.0
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Loaded modules:"
 module list 2>&1
 
-# Set up environment variables
-export PROJECT_DIR=/data/gpfs/projects/punim2072/MTS/MTS/MTS
+# Set up environment variables (default to submit dir so paths are correct)
+export PROJECT_DIR=${SLURM_SUBMIT_DIR:-/data/gpfs/projects/punim2072/MTS/MTS/MTS-2}
 export DATA_DIR=$PROJECT_DIR/data
 export OUTPUT_DIR=$PROJECT_DIR/outputs
 export PYTHONPATH=$PROJECT_DIR:$PROJECT_DIR/src:$PYTHONPATH
@@ -98,40 +98,17 @@ pip install --user torch==2.1.2 torchaudio==2.1.2 --index-url https://download.p
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing requirements..."
 pip install -r $PROJECT_DIR/requirements.txt --exists-action i
 
+# Enforce compatible transformers/sentence-transformers versions
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Reinstalling transformers stack..."
+pip uninstall -y transformers sentence-transformers >/dev/null 2>&1 || true
+pip install "transformers==4.36.0" "sentence-transformers==2.2.2"
+
 # Install optional packages separately (continue on failure)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing optional packages..."
 pip install madmom>=0.16.1 --no-build-isolation 2>/dev/null || echo "[WARNING] madmom failed"
 pip install openai-whisper>=20230314 2>/dev/null || echo "[WARNING] whisper failed"
 pip install pyrubberband>=0.3.0 2>/dev/null || echo "[WARNING] pyrubberband failed"
 pip install pedalboard>=0.7.0 2>/dev/null || echo "[WARNING] pedalboard failed"
-
-# Fix run_pipeline.py if needed
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Checking run_pipeline.py..."
-if [ -f "$PROJECT_DIR/run_pipeline.py" ]; then
-    # Fix the syntax error in the file
-    sed -i 's/if \*\*name\*\* == "__main__":/if __name__ == "__main__":/' $PROJECT_DIR/run_pipeline.py
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Fixed run_pipeline.py syntax"
-else
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Creating run_pipeline.py..."
-    cat > $PROJECT_DIR/run_pipeline.py << 'EOF'
-"""
-Main runner script for MTS Data Pipeline
-"""
-import os
-import sys
-from pathlib import Path
-
-# Add src directory to path
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
-
-# Import and run pipeline
-from pipeline import main
-
-if __name__ == "__main__":
-    main()
-EOF
-fi
 
 echo "================================"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Verifying installations..."
@@ -204,10 +181,10 @@ cd $PROJECT_DIR
 # Check if batch processor exists, use it for memory efficiency
 if [ -f "$PROJECT_DIR/run_batch_pipeline.py" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using batch processing for memory efficiency..."
-    python -u run_batch_pipeline.py --batch-size 100 --max-memory 75
+    python -u run_batch_pipeline.py --config config/batch_config.yaml --batch-size 100 --max-memory 75
 else
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using standard pipeline..."
-    python -u run_pipeline.py
+    python -u run_pipeline.py --config config/config.yaml
 fi
 
 EXIT_CODE=$?

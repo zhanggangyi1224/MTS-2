@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 import random
 import json
+import subprocess
+import tempfile
+import shutil
+import os
 from tqdm import tqdm
 import warnings
 
@@ -36,7 +40,8 @@ class MTSAudioAugmentation:
     def __init__(self, 
                  sample_rate: int = 22050,
                  augmentation_factor: int = 3,
-                 preserve_original: bool = True):
+                 preserve_original: bool = True,
+                 suppress_warnings: bool = False):
         """
         Initialize augmentation system
         
@@ -44,10 +49,12 @@ class MTSAudioAugmentation:
             sample_rate: Target sample rate for audio
             augmentation_factor: Number of augmented versions per original
             preserve_original: Whether to keep original alongside augmented versions
+            suppress_warnings: If True, suppress non-fatal warning prints
         """
         self.sample_rate = sample_rate
         self.augmentation_factor = augmentation_factor
         self.preserve_original = preserve_original
+        self.suppress_warnings = suppress_warnings
         
         # Augmentation parameters from project plan
         self.config = self._create_augmentation_config()
@@ -69,6 +76,11 @@ class MTSAudioAugmentation:
                 "low": 0
             }
         }
+
+    def _warn(self, msg: str):
+        """Conditionally emit warning messages."""
+        if not self.suppress_warnings:
+            print(msg)
     
     def _create_augmentation_config(self) -> Dict:
         """Create augmentation configuration"""
@@ -126,15 +138,20 @@ class MTSAudioAugmentation:
             Pitch-shifted audio
         """
         if HAS_PYRUBBERBAND:
-            # High-quality pitch shifting
-            return pyrb.pitch_shift(audio, self.sample_rate, semitones)
-        else:
-            # Fallback to librosa
+            try:
+                # High-quality pitch shifting
+                return pyrb.pitch_shift(audio, self.sample_rate, semitones)
+            except Exception as e:
+                self._warn(f"⚠️  pyrubberband failed ({e}), falling back to librosa for pitch shift.")
+        try:
             return librosa.effects.pitch_shift(
                 audio, 
                 sr=self.sample_rate, 
                 n_steps=semitones
             )
+        except Exception as e:
+            self._warn(f"⚠️  Librosa pitch_shift failed ({e}); using simple resample fallback.")
+            return self._simple_pitch_shift(audio, semitones)
     
     def tempo_scale_audio(self, 
                          audio: np.ndarray, 
@@ -150,11 +167,16 @@ class MTSAudioAugmentation:
             Tempo-scaled audio
         """
         if HAS_PYRUBBERBAND:
-            # High-quality time stretching
-            return pyrb.time_stretch(audio, self.sample_rate, scale_factor)
-        else:
-            # Fallback to librosa
+            try:
+                # High-quality time stretching
+                return pyrb.time_stretch(audio, self.sample_rate, scale_factor)
+            except Exception as e:
+                self._warn(f"⚠️  pyrubberband failed ({e}), falling back to librosa for tempo scaling.")
+        try:
             return librosa.effects.time_stretch(audio, rate=scale_factor)
+        except Exception as e:
+            self._warn(f"⚠️  Librosa time_stretch failed ({e}); using simple interpolation fallback.")
+            return self._simple_time_stretch(audio, scale_factor)
     
     def add_noise(self, 
                   audio: np.ndarray, 
@@ -529,7 +551,7 @@ class MTSAudioAugmentation:
                 })
                 
             except Exception as e:
-                print(f"⚠️  Error applying {transform_type}: {e}")
+                self._warn(f"⚠️  Error applying {transform_type}: {e}")
                 applied_transforms.append({
                     **transform,
                     "error": str(e),
@@ -561,7 +583,8 @@ class MTSAudioAugmentation:
     def augment_dataset(self, 
                        songs: List[Dict],
                        output_dir: str,
-                       save_audio: bool = False) -> List[Dict]:
+                       save_audio: bool = False,
+                       audio_format: str = "wav") -> List[Dict]:
         """
         Augment entire dataset
         
@@ -569,6 +592,7 @@ class MTSAudioAugmentation:
             songs: List of song dictionaries with audio data
             output_dir: Directory to save augmented data
             save_audio: Whether to save audio files to disk
+            audio_format: Audio format to save (wav|mp3|mp4). mp3/mp4 require ffmpeg.
             
         Returns:
             List of augmented song metadata
@@ -576,6 +600,8 @@ class MTSAudioAugmentation:
         output_path = Path(output_dir)
         output_path.mkdir(exist_ok=True)
         
+        audio_format = audio_format.lower()
+
         if save_audio:
             (output_path / "audio").mkdir(exist_ok=True)
         
@@ -613,10 +639,10 @@ class MTSAudioAugmentation:
                     
                     # Save audio file if requested
                     if save_audio:
-                        audio_filename = f"{plan['augmented_id']}.wav"
+                        audio_filename = f"{plan['augmented_id']}.{audio_format}"
                         audio_path = output_path / "audio" / audio_filename
-                        sf.write(str(audio_path), augmented_audio, self.sample_rate)
-                        augmented_song["audio_file_path"] = str(audio_path)
+                        saved_path = self._save_audio_file(audio_path, augmented_audio, audio_format)
+                        augmented_song["audio_file_path"] = str(saved_path)
                     
                     all_augmented.append(augmented_song)
                     self.stats["total_augmented"] += 1
@@ -697,6 +723,92 @@ class MTSAudioAugmentation:
             return obj.item()
         else:
             return obj
+
+    def _save_audio_file(self, path: Path, audio: np.ndarray, audio_format: str) -> Path:
+        """
+        Save audio to disk, supporting wav, mp3, mp4 (via ffmpeg).
+        Falls back to wav if external tools are unavailable.
+        """
+        audio_format = audio_format.lower()
+        if audio_format == "wav":
+            sf.write(str(path), audio, self.sample_rate)
+            return path
+
+        if audio_format in {"mp3", "mp4"}:
+            ffmpeg_bin = shutil.which("ffmpeg")
+            if not ffmpeg_bin:
+                self._warn(f"⚠️  ffmpeg not found; saving WAV instead of {audio_format.upper()}.")
+                wav_path = path.with_suffix(".wav")
+                sf.write(str(wav_path), audio, self.sample_rate)
+                return wav_path
+            # Write temp wav then convert to mp3
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
+                sf.write(tmp_wav.name, audio, self.sample_rate)
+                tmp_wav_path = tmp_wav.name
+            try:
+                cmd = [
+                    ffmpeg_bin, "-y",
+                    "-i", tmp_wav_path,
+                    "-vn",
+                    "-ar", str(self.sample_rate),
+                    "-ac", "1",
+                    "-b:a", "192k",
+                    str(path)
+                ]
+                subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return path
+            except Exception as e:
+                self._warn(f"⚠️  ffmpeg failed to write {audio_format.upper()} ({e}); saving WAV instead.")
+                wav_path = path.with_suffix(".wav")
+                sf.write(str(wav_path), audio, self.sample_rate)
+                return wav_path
+            finally:
+                try:
+                    os.remove(tmp_wav_path)
+                except OSError:
+                    pass
+
+        # Unknown format: fall back to wav
+        self._warn(f"⚠️  Unknown audio format '{audio_format}', saving WAV instead.")
+        wav_path = path.with_suffix(".wav")
+        sf.write(str(wav_path), audio, self.sample_rate)
+        return wav_path
+
+    def _simple_pitch_shift(self, audio: np.ndarray, semitones: float) -> np.ndarray:
+        """
+        Numba-free pitch shift via resampling. Approximates pitch change
+        by speed change + resample back to original length.
+        """
+        try:
+            from scipy import signal
+        except Exception as e:
+            self._warn(f"⚠️  scipy unavailable for simple pitch shift ({e}); returning original audio.")
+            return audio
+
+        factor = 2.0 ** (semitones / 12.0)
+        if factor <= 0:
+            return audio
+
+        # Speed change (length change)
+        sped = signal.resample(audio, int(len(audio) / factor))
+        # Resample back to original length to preserve duration
+        shifted = signal.resample(sped, len(audio))
+        return shifted.astype(audio.dtype)
+
+    def _simple_time_stretch(self, audio: np.ndarray, scale_factor: float) -> np.ndarray:
+        """
+        Numba-free time stretch using linear interpolation.
+        scale_factor >1 speeds up (shorter), <1 slows down (longer).
+        """
+        if scale_factor <= 0:
+            return audio
+
+        target_length = max(1, int(len(audio) / scale_factor))
+        # Interpolate to new length
+        x_old = np.linspace(0, 1, num=len(audio), endpoint=True)
+        x_new = np.linspace(0, 1, num=target_length, endpoint=True)
+        stretched = np.interp(x_new, x_old, audio)
+        return stretched.astype(audio.dtype)
 
 def main():
     """Test the augmentation system"""
