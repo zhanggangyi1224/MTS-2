@@ -27,6 +27,7 @@ python run_batch_pipeline.py --config config/batch_config.yaml
 
 ## Configuration
 - `config/config.yaml` – standard run; `use_simulated_data:true` avoids HF download.
+- To use FMA real audio: set `data.use_fma_dataset:true` and point `fma_audio_dir`/`fma_metadata_path` to your local FMA download (e.g., `./fma_data/fma_small`).
 - `config/batch_config.yaml` – tuned for batch runs; adjust `batch_processing.batch_size` and `max_memory_percent` to fit your machine.
 
 ## Outputs

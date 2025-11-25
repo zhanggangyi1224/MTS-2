@@ -266,15 +266,27 @@ class MTSDataPipeline:
         if self.config["data"]["use_simulated_data"]:
             self.logger.info("📝 Using simulated CCMusic dataset for development")
             dataset_info = self.data_loader._create_fallback_dataset()
+        elif self.config["data"].get("use_fma_dataset", False):
+            self.logger.info("📂 Loading FMA dataset with real audio")
+            dataset_info = self.data_loader.load_fma_dataset(
+                audio_dir=self.config["data"].get("fma_audio_dir", "./fma_data/fma_small"),
+                metadata_path=self.config["data"].get("fma_metadata_path"),
+                max_files=self.config["data"].get("fma_max_files", 500),
+                clip_duration=self.config["data"].get("fma_clip_duration", 30.0)
+            )
         else:
             self.logger.info(f"📂 Loading CCMusic dataset: {self.config['data']['dataset_name']}")
             dataset_info = self.data_loader.load_ccmusic_dataset(
                 self.config["data"]["dataset_name"]
             )
         
-        # Process features
-        self.logger.info("🎵 Processing features from dataset...")
-        processed_songs = self.data_loader.extract_features_from_spectrograms(dataset_info)
+        # Process features (skip if dataset already provides preprocessed songs)
+        if dataset_info.get("preprocessed_songs"):
+            processed_songs = dataset_info["preprocessed_songs"]
+            self.logger.info(f"🎵 Using preprocessed songs provided by dataset ({len(processed_songs)})")
+        else:
+            self.logger.info("🎵 Processing features from dataset...")
+            processed_songs = self.data_loader.extract_features_from_spectrograms(dataset_info)
         
         # Save processed data
         if self.config["pipeline"]["save_intermediate_results"]:

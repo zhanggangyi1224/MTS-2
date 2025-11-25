@@ -14,6 +14,7 @@ import json
 from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
+import glob
 
 class MTSDataLoader:
     """
@@ -187,6 +188,87 @@ class MTSDataLoader:
             "current_split": "train",
             "is_simulated": True
         }
+
+    def load_fma_dataset(self,
+                         audio_dir: str,
+                         metadata_path: Optional[str] = None,
+                         max_files: Optional[int] = 500,
+                         clip_duration: Optional[float] = 30.0) -> Dict:
+        """
+        Load FMA dataset (pre-downloaded) with real audio.
+
+        Args:
+            audio_dir: Path to FMA audio folder (e.g., ./fma_data/fma_small)
+            metadata_path: Path to tracks.csv (optional; used for genre/title)
+            max_files: Limit number of files to load (controls memory)
+            clip_duration: Seconds to load per track (None for full)
+
+        Returns:
+            Dataset info dict with preprocessed songs containing audio arrays.
+        """
+        audio_dir = Path(audio_dir)
+        if not audio_dir.exists():
+            raise FileNotFoundError(f"FMA audio directory not found: {audio_dir}")
+
+        genre_lookup = {}
+        title_lookup = {}
+        artist_lookup = {}
+        if metadata_path and Path(metadata_path).exists():
+            try:
+                tracks_df = pd.read_csv(metadata_path, index_col=0, header=[0, 1])
+                # The subset column tells which split (small/medium/etc.)
+                for tid, row in tracks_df.iterrows():
+                    try:
+                        genre_lookup[tid] = row["track"]["genre_top"]
+                        title_lookup[tid] = row["track"]["title"]
+                        artist_lookup[tid] = row["artist"]["name"]
+                    except Exception:
+                        continue
+            except Exception as e:
+                print(f"⚠️  Unable to read FMA metadata ({e}); proceeding without detailed labels.")
+
+        # Collect audio file paths
+        files = sorted(glob.glob(str(audio_dir / "**" / "*.mp3"), recursive=True))
+        if max_files:
+            files = files[:max_files]
+
+        songs = []
+        print(f"🎵 Loading FMA audio from {audio_dir} ({len(files)} files)...")
+        for idx, filepath in enumerate(tqdm(files, desc="Loading FMA audio")):
+            try:
+                tid = int(Path(filepath).stem)
+                audio, sr = librosa.load(filepath, sr=self.target_sr, duration=clip_duration)
+                song = {
+                    "id": f"fma_{tid:06d}",
+                    "title": title_lookup.get(tid, f"FMA_{tid:06d}"),
+                    "artist": artist_lookup.get(tid, "Unknown"),
+                    "genre": genre_lookup.get(tid, "Unknown"),
+                    "duration": len(audio) / self.target_sr,
+                    "sample_rate": self.target_sr,
+                    "language": "instrumental",
+                    "original_index": idx,
+                    "audio": audio,
+                    "has_audio": True,
+                    "data_source": "fma",
+                    "audio_path": filepath
+                }
+                songs.append(song)
+            except Exception as e:
+                print(f"⚠️  Error loading {filepath}: {e}")
+                continue
+
+        dataset = {
+            "dataset": songs,
+            "preprocessed_songs": songs,
+            "size": len(songs),
+            "sample_keys": list(songs[0].keys()) if songs else [],
+            "splits": ["train"],
+            "current_split": "train",
+            "is_fma": True,
+            "metadata_used": bool(genre_lookup)
+        }
+        print(f"✅ Loaded {len(songs)} FMA tracks with audio.")
+        return dataset
     
     def extract_features_from_spectrograms(self, 
                                          dataset_info: Dict,

@@ -11,6 +11,11 @@ batch_processing:
 
 data:
   use_simulated_data: true          # Set to false for real CCMusic dataset
+  use_fma_dataset: false            # Set true to use FMA audio instead of CCMusic
+  fma_audio_dir: "./fma_data/fma_small"
+  fma_metadata_path: "./fma_data/fma_metadata/tracks.csv"
+  fma_max_files: 500
+  fma_clip_duration: 30.0
   target_sample_rate: 22050
   output_dir: "./outputs"
   cache_dir: "./cache"

@@ -144,10 +144,18 @@ data:
   output_dir: "$OUTPUT_DIR"
   target_sample_rate: 22050
   use_simulated_data: true
+  use_fma_dataset: false
+  fma_audio_dir: "$PROJECT_DIR/fma_data/fma_small"
+  fma_metadata_path: "$PROJECT_DIR/fma_data/fma_metadata/tracks.csv"
+  fma_max_files: 500
+  fma_clip_duration: 30.0
 
 augmentation:
   enabled: true
   augmentation_factor: 3
+  save_audio: true
+  audio_format: "mp4"
+  suppress_warnings: true
 
 text_generation:
   enabled: true
