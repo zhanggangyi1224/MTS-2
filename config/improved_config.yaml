@@ -1,0 +1,166 @@
+# MTS Data Pipeline Configuration - IMPROVED
+# This version includes proper MP3 output and model training settings
+
+data:
+  dataset_name: "ccmusic-database/music_genre"
+  cache_dir: "./cache"
+  data_dir: "./data" 
+  output_dir: "./outputs"
+  target_sample_rate: 24000  # Changed to 24kHz for EnCodec compatibility
+  use_simulated_data: false  # Set to true for development
+  use_fma_dataset: true      # Use real FMA audio
+  fma_audio_dir: "./fma_data/fma_small"
+  fma_metadata_path: "./fma_data/fma_metadata/tracks.csv"
+  fma_max_files: 500
+  fma_clip_duration: 210.0  # 3.5 minutes for full song training
+  huggingface_token: null
+
+augmentation:
+  enabled: true
+  augmentation_factor: 3
+  preserve_original: true
+  save_audio: true
+  audio_format: "mp3"  # CHANGED: MP3 output for space efficiency
+  suppress_warnings: true
+  
+  techniques:
+    pitch_shift:
+      enabled: true
+      probability: 0.8
+      range_semitones: [-2, 2]
+      preserve_tempo: true
+      
+    tempo_scale:
+      enabled: true
+      probability: 0.8
+      range_factor: [0.9, 1.1]
+      preserve_pitch: true
+      
+    noise_addition:
+      enabled: true
+      probability: 0.4
+      snr_db_range: [20, 40]
+      noise_types: ["gaussian", "uniform", "pink"]
+      
+    eq_filter:
+      enabled: true
+      probability: 0.3
+      gain_range_db: [-3, 3]
+      frequency_ranges:
+        low: [60, 250]
+        mid: [250, 4000] 
+        high: [4000, 8000]
+        
+    reverb:
+      enabled: true
+      probability: 0.25
+      room_sizes: ["small", "medium", "large"]
+      wet_mix_range: [0.1, 0.4]
+      decay_time_range: [0.5, 3.0]
+
+text_generation:
+  enabled: true
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  prompt_pool_size: 1000
+  use_embedding_similarity: true
+  cache_dir: "./cache/text_models"
+
+data_organization:
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  random_state: 42
+  stratify_by_genre: true
+  
+  segment_durations: [30, 60, 120, 210]  # Added 210s for full song
+  min_song_duration: 60
+  
+structure_processing:
+  enabled: true
+  structure_subset_size: 500  # Increased for better coverage
+  create_conditioning_data: true
+  use_real_detection: true  # NEW: Use actual audio analysis
+  
+  structure_labels:
+    - "intro"
+    - "verse" 
+    - "chorus"
+    - "pre-chorus"
+    - "post-chorus"
+    - "bridge"
+    - "interlude"
+    - "ending"
+    - "outro"
+
+# NEW: Model training configuration
+model:
+  architecture: "diffusion"  # diffusion or transformer
+  model_size: "base"  # small, base, large
+  
+  encodec:
+    bandwidth: 6.0  # kbps
+    sample_rate: 24000
+    
+  diffusion:
+    timesteps: 1000
+    beta_schedule: "cosine"
+    
+  text_encoder: "t5-base"
+  use_structure_conditioning: true
+  
+training:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 1.0e-4
+  weight_decay: 0.01
+  warmup_steps: 1000
+  max_steps: 100000
+  
+  save_every: 5000
+  eval_every: 1000
+  log_every: 100
+  
+  use_amp: true  # Mixed precision training
+  gradient_clip: 1.0
+  
+  checkpoint_dir: "./checkpoints"
+  
+# NEW: Inference configuration  
+inference:
+  default_duration: 210.0  # 3.5 minutes
+  cfg_scale: 7.5  # Classifier-free guidance scale
+  num_inference_steps: 50  # DDIM steps
+  
+  output:
+    format: "mp3"  # wav, mp3, or flac
+    sample_rate: 24000
+    bitrate: "320k"  # For MP3
+    
+pipeline:
+  save_intermediate_results: true
+  continue_on_error: true
+  parallel_processing: false
+  validation_enabled: true
+  
+  batch_size: 32
+  max_workers: 4
+  
+logging:
+  level: "INFO"
+  save_logs: true
+  console_output: true
+  wandb:
+    enabled: false
+    project: "mts-music-generation"
+    entity: null
+
+advanced:
+  use_gpu: true
+  precision: "float16"  # float32 or float16
+  random_seed: 42
+  
+  validation:
+    check_file_integrity: true
+    verify_audio_quality: true
+    validate_text_prompts: true
+    check_structure_coherence: true

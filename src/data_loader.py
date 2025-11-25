@@ -238,7 +238,7 @@ class MTSDataLoader:
             try:
                 tid = int(Path(filepath).stem)
                 audio, sr = librosa.load(filepath, sr=self.target_sr, duration=clip_duration)
-                song = {
+                songs.append({
                     "id": f"fma_{tid:06d}",
                     "title": title_lookup.get(tid, f"FMA_{tid:06d}"),
                     "artist": artist_lookup.get(tid, "Unknown"),
@@ -251,14 +251,12 @@ class MTSDataLoader:
                     "has_audio": True,
                     "data_source": "fma",
                     "audio_path": filepath
-                }
-                songs.append(song)
+                })
             except Exception as e:
                 print(f"⚠️  Error loading {filepath}: {e}")
                 continue
 
         dataset = {
-            "dataset": songs,
             "preprocessed_songs": songs,
             "size": len(songs),
             "sample_keys": list(songs[0].keys()) if songs else [],

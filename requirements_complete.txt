@@ -1,0 +1,121 @@
+# MTS Complete Requirements
+# Includes data pipeline + model training dependencies
+
+# =============================================================================
+# CORE DEPENDENCIES
+# =============================================================================
+
+# Core numerics
+numpy>=1.24.0,<2.0
+pandas>=1.3.0
+scipy>=1.7.0
+scikit-learn>=1.0.0
+
+# =============================================================================
+# PYTORCH & CUDA
+# =============================================================================
+# Install separately with proper CUDA version:
+# pip install torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# =============================================================================
+# AUDIO PROCESSING
+# =============================================================================
+librosa>=0.9.0
+soundfile>=0.10.0
+audioread>=2.1.9
+resampy>=0.3.1
+pydub>=0.25.1  # For MP3 encoding (requires ffmpeg)
+
+# Audio codecs
+encodec>=0.1.1  # Meta's neural audio codec
+
+# Optional: Higher quality processing
+# pyrubberband>=0.3.0  # Requires rubberband system library
+# pedalboard>=0.7.0    # Spotify's audio effects
+
+# =============================================================================
+# TEXT & NLP
+# =============================================================================
+transformers>=4.30.0
+sentence-transformers>=2.2.0
+tokenizers>=0.13.0
+
+# =============================================================================
+# DEEP LEARNING UTILITIES
+# =============================================================================
+einops>=0.6.0  # Tensor operations
+accelerate>=0.20.0  # Training utilities
+safetensors>=0.3.0  # Safe model weights
+
+# =============================================================================
+# DATASET HANDLING
+# =============================================================================
+datasets>=2.0.0
+huggingface-hub>=0.10.0
+
+# =============================================================================
+# MUSIC ANALYSIS (for real structure detection)
+# =============================================================================
+mir_eval>=0.7
+
+# Optional but recommended:
+# madmom>=0.16.1  # Beat/structure detection (build issues, install manually)
+# msaf>=0.1.8     # Music structure analysis (optional)
+
+# =============================================================================
+# UTILITIES
+# =============================================================================
+tqdm>=4.64.0
+pyyaml>=6.0
+omegaconf>=2.3.0  # Advanced config management
+
+# Visualization
+matplotlib>=3.5.0
+seaborn>=0.11.0
+plotly>=5.0.0
+
+# Logging
+wandb>=0.15.0  # Experiment tracking (optional)
+tensorboard>=2.10.0
+
+# =============================================================================
+# DEVELOPMENT
+# =============================================================================
+pytest>=7.0.0
+black>=22.0
+flake8>=5.0.0
+mypy>=0.990
+ipython>=8.0.0
+
+# =============================================================================
+# MEMORY & PERFORMANCE
+# =============================================================================
+psutil>=5.9.0  # Memory monitoring
+py-cpuinfo>=9.0.0
+
+# =============================================================================
+# INSTALLATION NOTES
+# =============================================================================
+# 
+# 1. PyTorch with CUDA (install first):
+#    pip install torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
+#
+# 2. EnCodec:
+#    pip install encodec
+#
+# 3. For MP3 support:
+#    - Ensure ffmpeg is installed on your system
+#    - Ubuntu: sudo apt install ffmpeg
+#    - Mac: brew install ffmpeg
+#
+# 4. For madmom (optional, better beat tracking):
+#    pip install cython
+#    pip install madmom --no-build-isolation
+#
+# 5. For pyrubberband (optional, better pitch/tempo):
+#    - Install rubberband library first
+#    - Ubuntu: sudo apt install rubberband-cli librubberband-dev
+#    - Then: pip install pyrubberband
+#

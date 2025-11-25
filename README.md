@@ -24,10 +24,15 @@ python run_batch_pipeline.py --config config/batch_config.yaml
 - `data_organization.py` – stratified splits and multiple training configs.
 - `structure_processing.py` – simulated structure annotations, conditioning data, metrics.
 - `batch_processor.py` – checkpointed batch execution with memory monitoring.
+- `data/structure_detection.py` – basic audio-based structure detection (placeholder).
+- `models/encodec_wrapper.py`, `models/diffusion_unet.py`, `models/mts_model.py` – scaffold for the generative model (codec + diffusion + conditioning).
+- `training/trainer.py` – minimal training loop scaffold.
+- `inference/generator.py` – helper to load checkpoints and generate.
 
 ## Configuration
 - `config/config.yaml` – standard run; `use_simulated_data:true` avoids HF download.
 - To use FMA real audio: set `data.use_fma_dataset:true` and point `fma_audio_dir`/`fma_metadata_path` to your local FMA download (e.g., `./fma_data/fma_small`).
+- `config/improved_config.yaml` – example config that enables FMA real audio, mp3 output, and model/training placeholders.
 - `config/batch_config.yaml` – tuned for batch runs; adjust `batch_processing.batch_size` and `max_memory_percent` to fit your machine.
 
 ## Outputs

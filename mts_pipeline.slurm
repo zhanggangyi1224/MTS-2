@@ -43,6 +43,7 @@ module list 2>&1
 
 # Set up environment variables (default to submit dir so paths are correct)
 export PROJECT_DIR=${SLURM_SUBMIT_DIR:-/data/gpfs/projects/punim2072/MTS/MTS/MTS-2}
+export CACHE_DIR=$PROJECT_DIR/cache
 export DATA_DIR=$PROJECT_DIR/data
 export OUTPUT_DIR=$PROJECT_DIR/outputs
 export PYTHONPATH=$PROJECT_DIR:$PROJECT_DIR/src:$PYTHONPATH
@@ -97,6 +98,10 @@ pip install --user torch==2.1.2 torchaudio==2.1.2 --index-url https://download.p
 # Install main requirements (skip torch/torchaudio since already installed)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing requirements..."
 pip install -r $PROJECT_DIR/requirements.txt --exists-action i
+# Install extended/model deps if available
+if [ -f "$PROJECT_DIR/requirements_complete.txt" ]; then
+  pip install -r $PROJECT_DIR/requirements_complete.txt --exists-action i || true
+fi
 
 # Enforce compatible transformers/sentence-transformers versions
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Reinstalling transformers stack..."
@@ -154,7 +159,7 @@ augmentation:
   enabled: true
   augmentation_factor: 3
   save_audio: true
-  audio_format: "mp4"
+  audio_format: "mp3"
   suppress_warnings: true
 
 text_generation:
@@ -180,6 +185,9 @@ logging:
 EOF
 fi
 
+PIPELINE_CONFIG=${PIPELINE_CONFIG:-config/config.yaml}
+BATCH_CONFIG=${BATCH_CONFIG:-config/batch_config.yaml}
+
 # Run the pipeline using run_pipeline.py
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting MTS Pipeline..."
 echo "================================"
@@ -189,10 +197,10 @@ cd $PROJECT_DIR
 # Check if batch processor exists, use it for memory efficiency
 if [ -f "$PROJECT_DIR/run_batch_pipeline.py" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using batch processing for memory efficiency..."
-    python -u run_batch_pipeline.py --config config/batch_config.yaml --batch-size 100 --max-memory 75
+    python -u run_batch_pipeline.py --config $BATCH_CONFIG --batch-size 100 --max-memory 75
 else
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using standard pipeline..."
-    python -u run_pipeline.py --config config/config.yaml
+    python -u run_pipeline.py --config $PIPELINE_CONFIG
 fi
 
 EXIT_CODE=$?
