@@ -1,56 +1,52 @@
-# MTS Batch Processing Configuration
-# Optimized for memory-efficient processing
+# MTS Batch Processing Configuration - FIXED
+# Changes: audio_format set to mp3, sample_rate to 24000 for EnCodec compatibility
 
 batch_processing:
-  batch_size: 100                    # Number of songs per batch (adjust based on memory)
-  max_memory_percent: 75.0           # Maximum memory usage before cleanup
-  checkpoint_dir: "./checkpoints"    # Directory for saving progress
-  cleanup_frequency: 10              # Force cleanup every N batches
-  save_intermediate: true            # Save intermediate results
-  resume_from_checkpoint: true       # Resume from previous run if interrupted
+  batch_size: 100
+  max_memory_percent: 75.0
+  checkpoint_dir: "./checkpoints"
+  cleanup_frequency: 10
+  save_intermediate: true
+  resume_from_checkpoint: true
 
 data:
-  use_simulated_data: true          # Set to false for real CCMusic dataset
-  use_fma_dataset: false            # Set true to use FMA audio instead of CCMusic
+  use_simulated_data: true
+  use_fma_dataset: false
   fma_audio_dir: "./fma_data/fma_small"
   fma_metadata_path: "./fma_data/fma_metadata/tracks.csv"
   fma_max_files: 500
   fma_clip_duration: 30.0
-  target_sample_rate: 22050
+  target_sample_rate: 24000  # CHANGED: 24kHz for EnCodec compatibility
   output_dir: "./outputs"
   cache_dir: "./cache"
   data_dir: "./data"
-  huggingface_token: null           # Add your token if using real dataset
+  huggingface_token: null
 
 augmentation:
   enabled: true
-  augmentation_factor: 3            # Create 3x more data
-  batch_augmentation: true          # Process augmentation in batches
-  save_audio: true                  # Write augmented audio files
-  audio_format: "mp4"               # wav|mp3|mp4 (mp3/mp4 require ffmpeg)
-  suppress_warnings: true           # Quiet fallback warnings during augmentation
+  augmentation_factor: 3
+  batch_augmentation: true
+  save_audio: true
+  audio_format: "mp3"  # FIXED: Changed from mp4 to mp3
+  suppress_warnings: true
   
   techniques:
     pitch_shift:
       enabled: true
       probability: 0.8
       range_semitones: [-2, 2]
-      
     tempo_scale:
       enabled: true  
       probability: 0.8
       range_factor: [0.9, 1.1]
-      
     noise_addition:
       enabled: true
       probability: 0.4
       snr_db_range: [20, 40]
-      
     eq_filter:
       enabled: true
       probability: 0.3
       gain_range_db: [-3, 3]
-      
     reverb:
       enabled: true
       probability: 0.25
@@ -59,7 +55,7 @@ text_generation:
   enabled: true
   model_name: "sentence-transformers/all-MiniLM-L6-v2"
   prompt_pool_size: 1000
-  batch_text_generation: true       # Process text generation in batches
+  batch_text_generation: true
   cache_dir: "./cache/text_models"
 
 data_organization:
@@ -73,16 +69,16 @@ structure_processing:
   enabled: true
   structure_subset_size: 300
   create_conditioning_data: true
+  use_real_detection: false  # Set true to use src/data/structure_detection.py
 
-# Memory optimization settings
 memory_optimization:
-  enable_aggressive_gc: true        # Force garbage collection
-  batch_size_auto_adjust: true      # Automatically adjust batch size based on memory
-  min_batch_size: 10               # Minimum batch size
-  max_batch_size: 500              # Maximum batch size
+  enable_aggressive_gc: true
+  batch_size_auto_adjust: true
+  min_batch_size: 10
+  max_batch_size: 500
 
 logging:
   level: "INFO"
   save_logs: true
   console_output: true
-  memory_logging: true              # Log memory usage
+  memory_logging: true
