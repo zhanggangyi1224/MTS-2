@@ -274,7 +274,11 @@ class MTSBatchPipeline:
             "augmentation": {
                 "enabled": True,
                 "augmentation_factor": 3,
-                "batch_augmentation": True  # Process augmentation in batches
+                "batch_augmentation": True,  # Process augmentation in batches
+                "save_audio": False,
+                "audio_format": "wav",
+                "preserve_original": True,
+                "suppress_warnings": False
             },
             "text_generation": {
                 "enabled": True,
@@ -333,6 +337,8 @@ class MTSBatchPipeline:
         self.batch_processor.state["start_time"] = start_time.isoformat()
         
         try:
+            organized_data = {}
+            structure_data = {}
             # Step 1: Data Loading (in batches)
             if "data_loading" not in self.batch_processor.state["completed_steps"]:
                 original_songs = self._batch_data_loading()
@@ -374,12 +380,17 @@ class MTSBatchPipeline:
                 if "structure_processing" not in self.batch_processor.state["completed_steps"]:
                     structure_data = self._batch_structure_processing(all_labeled_songs)
                     self.batch_processor.state["completed_steps"].append("structure_processing")
+                else:
+                    self.logger.info("📂 Loading previous structure processing results...")
+                    loaded_structures = self.batch_processor.load_batch_results("structure_processing")
+                    # Maintain consistent schema for downstream consumers
+                    structure_data = {"annotated_songs": loaded_structures}
             else:
                 structure_data = {}
             
             # Step 6: Final integration
             final_results = self._finalize_batch_results(
-                len(original_songs), len(augmented_songs), len(all_labeled_songs)
+                original_songs, augmented_songs, all_labeled_songs, organized_data, structure_data
             )
             
             end_time = datetime.now()
@@ -469,8 +480,18 @@ class MTSBatchPipeline:
         augmenter = MTSAudioAugmentation(
             sample_rate=self.config["data"]["target_sample_rate"],
             augmentation_factor=self.config["augmentation"]["augmentation_factor"],
-            preserve_original=True
+            preserve_original=self.config["augmentation"].get("preserve_original", True),
+            suppress_warnings=self.config["augmentation"].get("suppress_warnings", False)
         )
+
+        # Apply user overrides for augmentation techniques if provided
+        if "techniques" in self.config["augmentation"]:
+            for technique, settings in self.config["augmentation"]["techniques"].items():
+                if technique in augmenter.config:
+                    augmenter.config[technique].update(settings)
+        
+        save_audio = self.config["augmentation"].get("save_audio", False)
+        audio_format = self.config["augmentation"].get("audio_format", "wav")
         
         all_augmented_songs = []
         
@@ -487,7 +508,8 @@ class MTSBatchPipeline:
             batch_augmented = augmenter.augment_dataset(
                 batch,
                 output_dir=f"{self.config['data']['data_dir']}/augmented",
-                save_audio=False  # Don't save audio to disk
+                save_audio=save_audio,
+                audio_format=audio_format
             )
             
             # Save batch results
@@ -667,11 +689,68 @@ class MTSBatchPipeline:
         self.logger.info(f"✅ Structure processing complete: {len(all_annotated_songs)} annotated songs")
         return structure_data
     
-    def _finalize_batch_results(self, n_original: int, n_augmented: int, n_labeled: int) -> Dict:
+    def _create_final_csv(self, all_songs: List[Dict], structure_data: Dict) -> Path:
+        """Create final comprehensive CSV dataset for batch pipeline"""
+        annotated_songs = []
+        if isinstance(structure_data, dict):
+            annotated_songs = structure_data.get("annotated_songs", [])
+        elif isinstance(structure_data, list):
+            annotated_songs = structure_data
+        
+        structured_songs = {s.get("id"): s for s in annotated_songs if isinstance(s, dict)}
+        
+        csv_data = []
+        for song in all_songs:
+            if not isinstance(song, dict):
+                continue
+            song_id = song.get("id", "")
+            structure_info = structured_songs.get(song_id, {})
+            
+            row = {
+                "id": song_id,
+                "original_id": song.get("original_id", ""),
+                "title": song.get("title", ""),
+                "artist": song.get("artist", ""),
+                "genre": song.get("genre", ""),
+                "duration": song.get("duration", 0),
+                "language": song.get("language", ""),
+                "text_prompt": song.get("text_prompt", ""),
+                "is_augmented": song.get("is_augmented", False),
+                "augmentation_quality": song.get("augmentation_metadata", {}).get("quality_category", "original"),
+                "has_structure": bool(structure_info),
+                "structure_template": structure_info.get("structure_template", ""),
+                "total_sections": structure_info.get("total_sections", 0),
+                "structure_coherence": structure_info.get("structure_coherence_score", 0.0),
+                "prompt_length": len(song.get("text_prompt", "").split()),
+                "sample_rate": self.config["data"]["target_sample_rate"],
+                "processing_date": datetime.now().isoformat()
+            }
+            csv_data.append(row)
+        
+        df = pd.DataFrame(csv_data)
+        csv_file = Path(self.config["data"]["output_dir"]) / "mts_final_dataset.csv"
+        csv_file.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(csv_file, index=False)
+        
+        self.logger.info(f"💾 Final CSV saved: {csv_file}")
+        return csv_file
+    
+    def _finalize_batch_results(self,
+                                original_songs: List[Dict],
+                                augmented_songs: List[Dict],
+                                all_labeled_songs: List[Dict],
+                                organized_data: Dict,
+                                structure_data: Dict) -> Dict:
         """Finalize and summarize all batch results"""
         self.logger.info("=" * 60)
         self.logger.info("STEP 6: FINALIZING RESULTS")
         self.logger.info("=" * 60)
+
+        n_original = len(original_songs)
+        n_augmented = len(augmented_songs)
+        n_labeled = len(all_labeled_songs)
+
+        final_csv = self._create_final_csv(all_labeled_songs, structure_data)
         
         # Create comprehensive summary
         summary = {
@@ -692,13 +771,19 @@ class MTSBatchPipeline:
             "output_files": {
                 "configurations": f"{self.config['data']['output_dir']}/configurations",
                 "structure": f"{self.config['data']['output_dir']}/structure",
-                "checkpoints": str(self.batch_processor.checkpoint_dir)
+                "checkpoints": str(self.batch_processor.checkpoint_dir),
+                "final_csv": str(final_csv)
+            },
+            "organized_data": {
+                "statistics": organized_data.get("statistics", {}),
+                "saved_files": organized_data.get("saved_files", {})
             },
             "status": "completed"
         }
         
         # Save final summary
         summary_file = Path(self.config["data"]["output_dir"]) / "batch_pipeline_summary.json"
+        summary["output_files"]["summary_file"] = str(summary_file)
         with open(summary_file, 'w') as f:
             json.dump(summary, f, indent=2, default=str)
         
@@ -727,7 +812,11 @@ def create_batch_config():
         "augmentation": {
             "enabled": True,
             "augmentation_factor": 3,
-            "batch_augmentation": True
+            "batch_augmentation": True,
+            "save_audio": True,
+            "audio_format": "mp3",
+            "preserve_original": True,
+            "suppress_warnings": True
         },
         "text_generation": {
             "enabled": True,

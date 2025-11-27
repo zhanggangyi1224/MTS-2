@@ -1,0 +1,85 @@
+# MTS Batch Processing Configuration - FIXED
+# Changes: audio_format set to mp3, sample_rate to 24000 for EnCodec compatibility
+
+batch_processing:
+  batch_size: 100
+  max_memory_percent: 75.0
+  checkpoint_dir: "./checkpoints"
+  cleanup_frequency: 10
+  save_intermediate: true
+  resume_from_checkpoint: true
+
+data:
+  use_simulated_data: true
+  use_fma_dataset: false
+  fma_audio_dir: "./fma_data/fma_small"
+  fma_metadata_path: "./fma_data/fma_metadata/tracks.csv"
+  fma_max_files: 500
+  fma_clip_duration: 30.0
+  target_sample_rate: 24000  # CHANGED: 24kHz for EnCodec compatibility
+  output_dir: "./outputs"
+  cache_dir: "./cache"
+  data_dir: "./data"
+  huggingface_token: null
+
+augmentation:
+  enabled: true
+  augmentation_factor: 3
+  batch_augmentation: true
+  save_audio: true
+  audio_format: "mp3"  # FIXED: Changed from mp4 to mp3
+  preserve_original: true
+  suppress_warnings: true
+  
+  techniques:
+    pitch_shift:
+      enabled: true
+      probability: 0.8
+      range_semitones: [-2, 2]
+    tempo_scale:
+      enabled: true  
+      probability: 0.8
+      range_factor: [0.9, 1.1]
+    noise_addition:
+      enabled: true
+      probability: 0.4
+      snr_db_range: [20, 40]
+    eq_filter:
+      enabled: true
+      probability: 0.3
+      gain_range_db: [-3, 3]
+    reverb:
+      enabled: true
+      probability: 0.25
+
+text_generation:
+  enabled: true
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  prompt_pool_size: 1000
+  batch_text_generation: true
+  cache_dir: "./cache/text_models"
+
+data_organization:
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  random_state: 42
+  stratify_by_genre: true
+
+structure_processing:
+  enabled: true
+  structure_subset_size: 300
+  create_conditioning_data: true
+  use_real_detection: false  # Set true to use src/data/structure_detection.py
+
+memory_optimization:
+  enable_aggressive_gc: true
+  batch_size_auto_adjust: true
+  min_batch_size: 10
+  max_batch_size: 500
+
+logging:
+  level: "INFO"
+  save_logs: true
+  console_output: true
+  memory_logging: true
