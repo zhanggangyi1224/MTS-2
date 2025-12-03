@@ -11,12 +11,19 @@ Uses librosa for beat tracking and madmom for structure detection.
 """
 
 import numpy as np
-import librosa
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from enum import IntEnum
 import warnings
 warnings.filterwarnings('ignore')
+
+# Required audio library
+try:
+    import librosa
+    HAS_LIBROSA = True
+except ImportError:
+    HAS_LIBROSA = False
+    print("⚠️  librosa not available. Structure detection will be simulated.")
 
 # Optional advanced libraries
 try:

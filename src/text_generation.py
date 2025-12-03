@@ -31,20 +31,23 @@ class MTSTextPromptGenerator:
     Following the Noise2Music approach from the project plan
     """
     
-    def __init__(self, 
+    def __init__(self,
                  model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
-                 cache_dir: str = "./cache"):
+                 cache_dir: str = "./cache",
+                 num_prompts: int = 1000):
         """
         Initialize text prompt generator
-        
+
         Args:
             model_name: Model name for text embeddings
             cache_dir: Directory for caching models
+            num_prompts: Number of prompts to generate in pool (default: 1000)
         """
         self.model_name = model_name
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)
-        
+        self.num_prompts = num_prompts
+
         # Initialize models
         self.embedding_model = self._load_embedding_model()
         

@@ -14,11 +14,20 @@ import argparse
 import logging
 
 # Import all our components
-from data_loader import MTSDataLoader
-from augmentation import MTSAudioAugmentation
-from text_generation import MTSTextPromptGenerator
-from data_organization import MTSDataOrganizer
-from structure_processing import MTSStructureProcessor
+# Try relative imports first, then absolute
+try:
+    from .data_loader import MTSDataLoader
+    from .augmentation import MTSAudioAugmentation
+    from .text_generation import MTSTextPromptGenerator
+    from .data_organization import MTSDataOrganizer
+    from .structure_processing import MTSStructureProcessor
+except ImportError:
+    # Fallback for direct execution
+    from data_loader import MTSDataLoader
+    from augmentation import MTSAudioAugmentation
+    from text_generation import MTSTextPromptGenerator
+    from data_organization import MTSDataOrganizer
+    from structure_processing import MTSStructureProcessor
 
 class MTSDataPipeline:
     """

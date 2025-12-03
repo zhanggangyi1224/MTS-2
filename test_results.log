@@ -1,0 +1,95 @@
+Traceback (most recent call last):
+  File "/Users/zhanggangyi/Desktop/MTS/MTS-2/test_pipeline.py", line 178, in test_data_loader
+    loader = MTSDataLoader(config)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/zhanggangyi/Desktop/MTS/MTS-2/src/data_loader.py", line 56, in __init__
+    self.cache_dir = Path(cache_dir)
+                     ^^^^^^^^^^^^^^^
+  File "/opt/anaconda3/lib/python3.12/pathlib.py", line 1162, in __init__
+    super().__init__(*args)
+  File "/opt/anaconda3/lib/python3.12/pathlib.py", line 373, in __init__
+    raise TypeError(
+TypeError: argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'dict'
+
+🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪
+MTS-2 PIPELINE TEST SUITE
+🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪
+
+============================================================
+TEST 1: Module Imports
+============================================================
+✅ numpy
+✅ pandas
+⚠️  librosa (optional): No module named 'librosa'
+⚠️  transformers (optional): No module named 'transformers'
+⚠️  librosa not available. Audio loading will be limited.
+⚠️  soundfile not available. Using numpy for audio I/O.
+⚠️  datasets not available. CCMusic/HuggingFace datasets disabled.
+⚠️  librosa not available. Audio augmentation will be limited.
+⚠️  soundfile not available. Using basic audio I/O.
+⚠️  pyrubberband not available. Using librosa for pitch/tempo changes.
+⚠️  pedalboard not available. Using basic audio effects.
+⚠️  transformers not available. Using simulated text generation.
+⚠️  sentence-transformers not available. Using simulated similarity matching.
+✅ pipeline.MTSDataPipeline
+✅ data_loader.MTSDataLoader
+✅ augmentation.MTSAudioAugmentation
+✅ text_generation.MTSTextPromptGenerator
+✅ data_organization.MTSDataOrganizer
+✅ structure_processing.MTSStructureProcessor
+✅ batch_processor.MTSBatchProcessor
+
+Import success rate: 100.0% (11/11)
+
+============================================================
+TEST 2: Configuration Loading
+============================================================
+✅ config/test_config.yaml
+✅ config/config.yaml
+✅ config/improved_config.yaml
+✅ config/batch_config.yaml
+
+============================================================
+TEST 3: Data Loader (Simulated)
+============================================================
+❌ Data loader failed: argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'dict'
+
+============================================================
+TEST 4: Augmentation (Dry Run)
+============================================================
+✅ MTSAudioAugmentation created
+✅ Created test audio
+✅ Generated augmentation plan with 2 steps
+⚠️  Augmentation failed: MTSAudioAugmentation.apply_augmentation_plan() takes 3 positional arguments but 4 were given
+
+============================================================
+TEST 5: Text Generation
+============================================================
+✅ MTSTextPromptGenerator created
+🎵 Generating 1000 music description prompts...
+✅ Generated 909 unique prompts
+   Average length: 8.2 words
+✅ Generated 909 prompts
+
+============================================================
+TEST 6: Pipeline Creation
+============================================================
+✅ Loading config from config/test_config.yaml
+✅ MTSDataPipeline created
+
+⚠️  Some basic tests failed, skipping full pipeline test
+
+============================================================
+TEST SUMMARY
+============================================================
+✅ PASS: imports
+✅ PASS: config
+❌ FAIL: data_loader
+✅ PASS: augmentation
+✅ PASS: text_generation
+✅ PASS: pipeline_creation
+❌ FAIL: full_pipeline
+
+5/7 tests passed (71.4%)
+
+⚠️  Some tests failed. Check output above for details.

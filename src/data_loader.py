@@ -5,16 +5,35 @@ MTS Data Loader - Handles CCMusic dataset loading and preprocessing
 import os
 import numpy as np
 import pandas as pd
-import librosa
-import soundfile as sf
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
-from datasets import load_dataset
 import json
 from tqdm import tqdm
 import warnings
 warnings.filterwarnings('ignore')
 import glob
+
+# Optional dependencies with fallbacks
+try:
+    import librosa
+    HAS_LIBROSA = True
+except ImportError:
+    HAS_LIBROSA = False
+    print("⚠️  librosa not available. Audio loading will be limited.")
+
+try:
+    import soundfile as sf
+    HAS_SOUNDFILE = True
+except ImportError:
+    HAS_SOUNDFILE = False
+    print("⚠️  soundfile not available. Using numpy for audio I/O.")
+
+try:
+    from datasets import load_dataset
+    HAS_DATASETS = True
+except ImportError:
+    HAS_DATASETS = False
+    print("⚠️  datasets not available. CCMusic/HuggingFace datasets disabled.")
 
 class MTSDataLoader:
     """

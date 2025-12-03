@@ -1,0 +1,135 @@
+# MTS-2 Test Configuration
+# Minimal config for testing the pipeline with small data
+
+# Output directories
+output_dir: "./test_outputs"
+cache_dir: "./test_cache"
+
+# Dataset configuration
+data:
+  data_source: "simulated"  # Options: ccmusic, fma, simulated
+  num_songs: 10  # Very small for testing
+  target_sample_rate: 24000
+  target_duration: 30.0  # Short duration for testing (30 seconds)
+  cache_dir: "./test_cache"
+  data_dir: "./test_data"
+  output_dir: "./test_outputs"  # Add output_dir here too
+
+  # Simulated data parameters
+  simulated:
+    num_songs: 10
+    duration_range: [30, 60]  # Short songs for testing
+    sample_rate: 24000
+
+  # FMA parameters (if using)
+  fma:
+    subset: "small"
+    audio_path: null  # Will need to be set if using FMA
+    metadata_path: null
+
+# Augmentation configuration
+augmentation:
+  enabled: true
+  augmentation_factor: 2  # Reduced for testing (original + 1 augmented)
+
+  # Audio output settings
+  save_audio: true  # ENABLE audio file saving
+  audio_format: "wav"  # Format: wav, mp3, or flac
+  preserve_original: true  # Keep original files too
+
+  # Which techniques to use
+  techniques:
+    pitch_shift: true
+    tempo_scale: false  # Disable some for faster testing
+    add_noise: true
+    eq_filter: false
+    reverb: false
+
+  # Technique parameters
+  pitch_shift_range: [-1, 1]  # Reduced range (±1 semitone)
+  tempo_scale_range: [0.95, 1.05]  # Reduced range
+  noise_snr_range: [30, 40]  # Higher SNR = less noise
+
+  # Quality control
+  quality_threshold: 0.3  # Accept lower quality for testing
+
+# Text generation configuration
+text_generation:
+  model_name: "t5-small"  # Smaller model for testing
+  use_cached_prompts: true
+  num_prompts: 20  # Much smaller pool
+  batch_size: 4  # Smaller batches
+  max_length: 128  # Shorter prompts
+
+  # Whether to generate new prompts
+  generate_new: false  # Use cached if available
+
+# Data organization
+data_organization:
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  random_seed: 42
+
+  # Configurations to create
+  create_configs:
+    - "full"  # Only create full config for testing
+
+  # Minimum samples required
+  min_samples_per_split: 1  # Allow very small splits
+
+# Structure processing
+structure_processing:
+  enabled: true
+  structure_subset_size: 5  # Process only 5 songs
+
+  # Structure templates
+  templates:
+    - "verse_chorus"
+    - "aaba"
+
+  # Conditioning methods
+  conditioning_methods:
+    - "timeline"
+    - "description"
+
+  # Structure parameters
+  min_section_duration: 5.0  # Shorter minimum
+  max_sections: 8  # Fewer sections
+
+# Batch processing (if using batch mode)
+batch:
+  batch_size: 5  # Small batches
+  max_memory_gb: 4.0  # Conservative limit
+  checkpoint_interval: 1  # Checkpoint after each batch
+  enable_checkpoints: true
+  resume_from_checkpoint: false
+
+# Pipeline configuration
+pipeline:
+  save_intermediate_results: true  # Save outputs from each step
+  create_final_report: true
+
+# Logging
+logging:
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
+  log_to_file: true
+  log_file: "test_outputs/pipeline.log"
+
+# Processing options
+processing:
+  num_workers: 1  # Single worker for debugging
+  parallel_processing: false
+  show_progress: true
+
+# Error handling
+error_handling:
+  continue_on_error: true  # Don't stop on errors during testing
+  save_error_logs: true
+  max_retries: 1
+
+# Performance
+performance:
+  low_memory_mode: true
+  clear_cache_between_steps: true
+  gc_threshold: 2.0  # Force GC at 2GB

@@ -3,8 +3,6 @@ MTS Audio Augmentation - Comprehensive audio data augmentation system
 """
 
 import numpy as np
-import librosa
-import soundfile as sf
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 import random
@@ -15,6 +13,21 @@ import shutil
 import os
 from tqdm import tqdm
 import warnings
+
+# Required audio dependencies with fallbacks
+try:
+    import librosa
+    HAS_LIBROSA = True
+except ImportError:
+    HAS_LIBROSA = False
+    print("⚠️  librosa not available. Audio augmentation will be limited.")
+
+try:
+    import soundfile as sf
+    HAS_SOUNDFILE = True
+except ImportError:
+    HAS_SOUNDFILE = False
+    print("⚠️  soundfile not available. Using basic audio I/O.")
 
 # Optional: high-quality audio processing libraries
 try:
@@ -143,15 +156,17 @@ class MTSAudioAugmentation:
                 return pyrb.pitch_shift(audio, self.sample_rate, semitones)
             except Exception as e:
                 self._warn(f"⚠️  pyrubberband failed ({e}), falling back to librosa for pitch shift.")
-        try:
-            return librosa.effects.pitch_shift(
-                audio, 
-                sr=self.sample_rate, 
-                n_steps=semitones
-            )
-        except Exception as e:
-            self._warn(f"⚠️  Librosa pitch_shift failed ({e}); using simple resample fallback.")
-            return self._simple_pitch_shift(audio, semitones)
+        if HAS_LIBROSA:
+            try:
+                return librosa.effects.pitch_shift(
+                    audio,
+                    sr=self.sample_rate,
+                    n_steps=semitones
+                )
+            except Exception as e:
+                self._warn(f"⚠️  Librosa pitch_shift failed ({e}); using simple resample fallback.")
+
+        return self._simple_pitch_shift(audio, semitones)
     
     def tempo_scale_audio(self, 
                          audio: np.ndarray, 
@@ -172,11 +187,13 @@ class MTSAudioAugmentation:
                 return pyrb.time_stretch(audio, self.sample_rate, scale_factor)
             except Exception as e:
                 self._warn(f"⚠️  pyrubberband failed ({e}), falling back to librosa for tempo scaling.")
-        try:
-            return librosa.effects.time_stretch(audio, rate=scale_factor)
-        except Exception as e:
-            self._warn(f"⚠️  Librosa time_stretch failed ({e}); using simple interpolation fallback.")
-            return self._simple_time_stretch(audio, scale_factor)
+        if HAS_LIBROSA:
+            try:
+                return librosa.effects.time_stretch(audio, rate=scale_factor)
+            except Exception as e:
+                self._warn(f"⚠️  Librosa time_stretch failed ({e}); using simple interpolation fallback.")
+
+        return self._simple_time_stretch(audio, scale_factor)
     
     def add_noise(self, 
                   audio: np.ndarray, 
@@ -730,21 +747,35 @@ class MTSAudioAugmentation:
         Falls back to wav if external tools are unavailable.
         """
         audio_format = audio_format.lower()
+
+        # Helper function to write WAV
+        def write_wav(out_path: Path) -> Path:
+            if HAS_SOUNDFILE:
+                sf.write(str(out_path), audio, self.sample_rate)
+            else:
+                # Fallback: save as numpy array
+                np.save(str(out_path.with_suffix('.npy')), audio)
+                self._warn(f"⚠️  soundfile not available. Saved as .npy instead.")
+                return out_path.with_suffix('.npy')
+            return out_path
+
         if audio_format == "wav":
-            sf.write(str(path), audio, self.sample_rate)
-            return path
+            return write_wav(path)
 
         if audio_format in {"mp3", "mp4"}:
             ffmpeg_bin = shutil.which("ffmpeg")
             if not ffmpeg_bin:
                 self._warn(f"⚠️  ffmpeg not found; saving WAV instead of {audio_format.upper()}.")
                 wav_path = path.with_suffix(".wav")
-                sf.write(str(wav_path), audio, self.sample_rate)
-                return wav_path
+                return write_wav(wav_path)
+
             # Write temp wav then convert to mp3
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_wav:
-                sf.write(tmp_wav.name, audio, self.sample_rate)
                 tmp_wav_path = tmp_wav.name
+
+            # Write temporary WAV
+            write_wav(Path(tmp_wav_path))
+
             try:
                 cmd = [
                     ffmpeg_bin, "-y",
@@ -760,8 +791,7 @@ class MTSAudioAugmentation:
             except Exception as e:
                 self._warn(f"⚠️  ffmpeg failed to write {audio_format.upper()} ({e}); saving WAV instead.")
                 wav_path = path.with_suffix(".wav")
-                sf.write(str(wav_path), audio, self.sample_rate)
-                return wav_path
+                return write_wav(wav_path)
             finally:
                 try:
                     os.remove(tmp_wav_path)
@@ -771,8 +801,7 @@ class MTSAudioAugmentation:
         # Unknown format: fall back to wav
         self._warn(f"⚠️  Unknown audio format '{audio_format}', saving WAV instead.")
         wav_path = path.with_suffix(".wav")
-        sf.write(str(wav_path), audio, self.sample_rate)
-        return wav_path
+        return write_wav(wav_path)
 
     def _simple_pitch_shift(self, audio: np.ndarray, semitones: float) -> np.ndarray:
         """

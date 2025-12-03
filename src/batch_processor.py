@@ -415,7 +415,10 @@ class MTSBatchPipeline:
         self.logger.info("=" * 60)
         
         # Import data loader
-        from data_loader import MTSDataLoader
+        try:
+            from .data_loader import MTSDataLoader
+        except ImportError:
+            from data_loader import MTSDataLoader
         
         loader = MTSDataLoader(
             cache_dir=self.config["data"].get("cache_dir", "./cache"),
@@ -475,7 +478,10 @@ class MTSBatchPipeline:
         self.logger.info("=" * 60)
         
         # Import augmentation module
-        from augmentation import MTSAudioAugmentation
+        try:
+            from .augmentation import MTSAudioAugmentation
+        except ImportError:
+            from augmentation import MTSAudioAugmentation
         
         augmenter = MTSAudioAugmentation(
             sample_rate=self.config["data"]["target_sample_rate"],
@@ -534,7 +540,10 @@ class MTSBatchPipeline:
         self.logger.info("=" * 60)
         
         # Import text generation module
-        from text_generation import MTSTextPromptGenerator
+        try:
+            from .text_generation import MTSTextPromptGenerator
+        except ImportError:
+            from text_generation import MTSTextPromptGenerator
         
         generator = MTSTextPromptGenerator(
             model_name=self.config["text_generation"]["model_name"],
@@ -599,7 +608,10 @@ class MTSBatchPipeline:
         self.logger.info("=" * 60)
         
         # Import organization module
-        from data_organization import MTSDataOrganizer
+        try:
+            from .data_organization import MTSDataOrganizer
+        except ImportError:
+            from data_organization import MTSDataOrganizer
         
         organizer = MTSDataOrganizer(
             train_ratio=self.config["data_organization"]["train_ratio"],
@@ -637,7 +649,10 @@ class MTSBatchPipeline:
         self.logger.info("=" * 60)
         
         # Import structure processing module
-        from structure_processing import MTSStructureProcessor
+        try:
+            from .structure_processing import MTSStructureProcessor
+        except ImportError:
+            from structure_processing import MTSStructureProcessor
         
         processor = MTSStructureProcessor(
             structure_subset_size=self.config["structure_processing"]["structure_subset_size"]
@@ -861,6 +876,9 @@ def main():
     print(f"Final dataset: {results['data_summary']['total_labeled_songs']:,}")
     print(f"Expansion factor: {results['data_summary']['expansion_factor']:.1f}x")
     print(f"Peak memory: {results['peak_memory_usage']['process_mb']:.1f} MB")
+
+# Alias for backward compatibility
+MTSBatchProcessor = MTSBatchPipeline
 
 if __name__ == "__main__":
     main()
