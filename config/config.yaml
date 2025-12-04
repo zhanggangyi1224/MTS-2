@@ -19,7 +19,7 @@ augmentation:
   augmentation_factor: 3
   preserve_original: true
   save_audio: true          # Write augmented audio files
-  audio_format: "mp4"       # wav|mp3|mp4 (mp3/mp4 require ffmpeg)
+  audio_format: "mp3"       # wav|mp3|mp4 (mp3/mp4 require ffmpeg) - FIXED: Changed to mp3
   suppress_warnings: true   # Quiet fallback warnings during augmentation
   
   techniques:
