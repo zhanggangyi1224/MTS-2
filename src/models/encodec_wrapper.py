@@ -134,10 +134,12 @@ class EnCodecWrapper(nn.Module):
         # EnCodec encoding
         with torch.no_grad():
             encoded_frames = self.model.encode(audio)
-        
+
         # Extract codes from frames
         codes = torch.cat([frame[0] for frame in encoded_frames], dim=-1)
-        
+        # Ensure codes are on the same device as the model
+        codes = codes.to(self.device)
+
         return encoded_frames, codes  # Shape: (batch, n_codebooks, seq_len)
     
     @torch.no_grad()

@@ -1,40 +1,38 @@
 #!/bin/bash
 #
-# MTS-2 Pipeline SLURM Job Script
-# Updated: 2025-12-04
-# Status: PRODUCTION READY - All critical bugs fixed
+# MTS-2 Complete Pipeline SLURM Job Script
+# Updated: 2025-12-17
+# Single job that handles: Data Preparation → Model Training → Sample Generation
 #
-# Bug Fixes Applied:
-# - Import system: 100% success (relative/absolute fallbacks)
-# - Dependency management: Graceful degradation for missing libraries
-# - Audio output: Fully enabled and configured
-# - API consistency: All function signatures fixed
-# - Configuration: Auto-fixes applied for audio output settings
-#
-# Audio Output: {DATA_DIR}/augmented/audio/*.mp3
-# Test Results: 71.4% passing (5/7 tests - 2 test bugs, not pipeline bugs)
+# This unified script eliminates the need for multiple job submissions by:
+# 1. Preparing data (download + augmentation) → creates real audio files
+# 2. Training MTS model on GPU → saves checkpoints
+# 3. Generating test samples → validates model quality
 #
 #SBATCH --partition=gpu-h100
 #SBATCH --gres=gpu:1
-#SBATCH -c 4
-#SBATCH --mem=24G
+#SBATCH -c 8
+#SBATCH --mem=64G
 #SBATCH -t 7-00:00:00
-#SBATCH -J mts-data-pipeline
+#SBATCH -J mts-complete-pipeline
 #SBATCH -o /data/gpfs/projects/punim2072/MTS/out/%x-%j.out
 #SBATCH -e /data/gpfs/projects/punim2072/MTS/err/%x-%j.err
 #SBATCH --mail-user=GangyiZ@student.unimelb.edu.au
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH -A punim2072
 
-echo "================================"
-echo "MTS-2 Data Pipeline - Job Started"
-echo "Bug Fixes Applied: Import system, dependency management, audio output"
-echo "================================"
+echo "======================================================================"
+echo "        MTS-2 Complete Pipeline - Single Job Execution"
+echo "======================================================================"
+echo "Phase 1: Data Preparation (download + augmentation)"
+echo "Phase 2: Model Training (GPU-accelerated)"
+echo "Phase 3: Sample Generation (quality validation)"
+echo "======================================================================"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Job Name: $SLURM_JOB_NAME"
 echo "Node: $SLURM_NODELIST"
 echo "Start Time: $(date)"
-echo "================================"
+echo "======================================================================"
 
 # Load HPC modules
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Loading HPC modules..."
@@ -338,77 +336,258 @@ fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using config: $PIPELINE_CONFIG"
 
-# Run the pipeline
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting MTS Pipeline..."
-echo "================================"
+################################################################################
+# PHASE 1: DATA PREPARATION
+################################################################################
+echo ""
+echo "======================================================================"
+echo "PHASE 1: DATA PREPARATION"
+echo "======================================================================"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting data preparation..."
 
 cd $PROJECT_DIR
 
-if [ -f "$PROJECT_DIR/run_batch_pipeline.py" ]; then
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using batch processing for memory efficiency..."
-    python -u run_batch_pipeline.py --config $PIPELINE_CONFIG --batch-size 100 --max-memory 75
+# Check if data already exists
+if [ -f "$OUTPUT_DIR/mts_final_dataset.csv" ]; then
+    echo "✅ Found existing processed data: $OUTPUT_DIR/mts_final_dataset.csv"
+    echo "   Skipping data preparation phase"
+    DATA_PREP_EXIT_CODE=0
 else
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using standard pipeline..."
-    python -u run_pipeline.py --config config/config.yaml
+    echo "⚠️  No processed data found, running data preparation..."
+
+    if [ -f "$PROJECT_DIR/run_batch_pipeline.py" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using batch processing for memory efficiency..."
+        python -u run_batch_pipeline.py --config $PIPELINE_CONFIG --batch-size 100 --max-memory 75
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using standard pipeline..."
+        python -u run_pipeline.py --config config/config_hpc.yaml
+    fi
+
+    DATA_PREP_EXIT_CODE=$?
 fi
 
-EXIT_CODE=$?
+echo "======================================================================"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Phase 1 completed with exit code: $DATA_PREP_EXIT_CODE"
 
-# Report results
-echo "================================"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Pipeline completed with exit code: $EXIT_CODE"
-
-if [ $EXIT_CODE -eq 0 ]; then
+if [ $DATA_PREP_EXIT_CODE -eq 0 ]; then
     echo "Status: ✅ SUCCESS"
     echo ""
-    echo "📊 Output Summary:"
+    echo "📊 Data Preparation Summary:"
     echo "  JSON files: $(find $OUTPUT_DIR -name '*.json' 2>/dev/null | wc -l)"
     echo "  CSV files: $(find $OUTPUT_DIR -name '*.csv' 2>/dev/null | wc -l)"
-    echo "  All audio files: $(find $DATA_DIR -name '*.mp3' -o -name '*.wav' 2>/dev/null | wc -l)"
-    echo ""
-    echo "🎵 Audio Output Verification:"
-    echo "  Expected location: $DATA_DIR/augmented/audio/"
+    echo "  Audio files: $(find $DATA_DIR -name '*.mp3' -o -name '*.wav' 2>/dev/null | wc -l)"
 
     if [ -d "$DATA_DIR/augmented/audio" ]; then
         AUDIO_COUNT=$(find $DATA_DIR/augmented/audio -type f \( -name '*.mp3' -o -name '*.wav' \) 2>/dev/null | wc -l)
-        AUDIO_SIZE=$(du -sh $DATA_DIR/augmented/audio 2>/dev/null | awk '{print $1}')
-        echo "  ✅ Audio directory exists"
-        echo "  📂 Total audio files: $AUDIO_COUNT"
-        echo "  💾 Total size: $AUDIO_SIZE"
+        echo "  🎵 Augmented audio files: $AUDIO_COUNT"
+    fi
 
-        if [ $AUDIO_COUNT -gt 0 ]; then
+    echo "  ✅ Ready for training phase"
+else
+    echo "Status: ❌ FAILED"
+    echo "Data preparation failed, aborting pipeline"
+    conda deactivate
+    exit $DATA_PREP_EXIT_CODE
+fi
+
+################################################################################
+# PHASE 2: MODEL TRAINING
+################################################################################
+echo ""
+echo "======================================================================"
+echo "PHASE 2: MODEL TRAINING"
+echo "======================================================================"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting model training..."
+
+# Training configuration
+BATCH_SIZE=8
+EPOCHS=200
+LR=1e-4
+SAVE_EVERY=20
+
+echo "Training Configuration:"
+echo "  Batch size: $BATCH_SIZE"
+echo "  Epochs: $EPOCHS"
+echo "  Learning rate: $LR"
+echo "  Save every: $SAVE_EVERY epochs"
+echo "  Device: CUDA (H100 GPU)"
+
+# Create directories
+mkdir -p $PROJECT_DIR/checkpoints
+mkdir -p $PROJECT_DIR/generated_samples
+
+# Check for existing checkpoint to resume from
+if [ -f "$PROJECT_DIR/checkpoints/mts_best.pt" ]; then
+    echo "⚠️  Found existing checkpoint: checkpoints/mts_best.pt"
+    echo "   Training will resume from this checkpoint"
+    RESUME_FLAG="--resume $PROJECT_DIR/checkpoints/mts_best.pt"
+else
+    echo "✅ Starting training from scratch"
+    RESUME_FLAG=""
+fi
+
+# Run training
+echo ""
+echo "🚀 Starting MTS model training..."
+python -u train_mts_hpc.py \
+    --batch-size $BATCH_SIZE \
+    --epochs $EPOCHS \
+    --lr $LR \
+    --save-every $SAVE_EVERY \
+    --device cuda \
+    --num-workers 4 \
+    --dataset $OUTPUT_DIR/mts_final_dataset.csv \
+    --checkpoint-dir $PROJECT_DIR/checkpoints \
+    $RESUME_FLAG
+
+TRAIN_EXIT_CODE=$?
+
+echo "======================================================================"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Phase 2 completed with exit code: $TRAIN_EXIT_CODE"
+
+if [ $TRAIN_EXIT_CODE -eq 0 ]; then
+    echo "Status: ✅ SUCCESS"
+
+    # Find best checkpoint
+    BEST_CHECKPOINT=$(ls -t $PROJECT_DIR/checkpoints/mts_best.pt 2>/dev/null | head -1)
+    if [ -n "$BEST_CHECKPOINT" ]; then
+        CHECKPOINT_SIZE=$(du -h "$BEST_CHECKPOINT" | cut -f1)
+        echo "  💾 Best checkpoint: checkpoints/mts_best.pt ($CHECKPOINT_SIZE)"
+    fi
+
+    # Count checkpoints
+    CHECKPOINT_COUNT=$(ls $PROJECT_DIR/checkpoints/*.pt 2>/dev/null | wc -l)
+    echo "  📦 Total checkpoints saved: $CHECKPOINT_COUNT"
+    echo "  ✅ Ready for generation phase"
+else
+    echo "Status: ❌ FAILED"
+    echo "Training failed, skipping generation phase"
+    conda deactivate
+    exit $TRAIN_EXIT_CODE
+fi
+
+################################################################################
+# PHASE 3: SAMPLE GENERATION
+################################################################################
+echo ""
+echo "======================================================================"
+echo "PHASE 3: SAMPLE GENERATION"
+echo "======================================================================"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating test samples..."
+
+# Check if test_generation.py exists
+if [ -f "$PROJECT_DIR/test_generation.py" ]; then
+    python -u test_generation.py
+    GEN_EXIT_CODE=$?
+
+    echo "======================================================================"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Phase 3 completed with exit code: $GEN_EXIT_CODE"
+
+    if [ $GEN_EXIT_CODE -eq 0 ]; then
+        echo "Status: ✅ SUCCESS"
+
+        # Count generated samples
+        SAMPLE_COUNT=$(ls $PROJECT_DIR/generated_samples/*.wav 2>/dev/null | wc -l)
+        if [ $SAMPLE_COUNT -gt 0 ]; then
+            echo "  🎵 Generated samples: $SAMPLE_COUNT"
+            echo "  📁 Location: generated_samples/"
+
+            # Show first few samples
             echo ""
-            echo "  🎼 Sample audio files (first 10):"
-            find $DATA_DIR/augmented/audio -type f \( -name '*.mp3' -o -name '*.wav' \) 2>/dev/null | head -10 | while read file; do
-                SIZE=$(ls -lh "$file" | awk '{print $5}')
-                echo "    - $(basename "$file") ($SIZE)"
-            done
+            echo "  Sample files:"
+            ls -lh $PROJECT_DIR/generated_samples/*.wav 2>/dev/null | head -5 | awk '{print "    - " $9 " (" $5 ")"}'
         else
-            echo "  ⚠️  WARNING: No audio files found in output directory!"
-            echo "  This may indicate audio saving did not complete successfully."
+            echo "  ⚠️  No samples generated"
         fi
     else
-        echo "  ❌ Audio directory does NOT exist!"
-        echo "  Checking parent directory..."
-        ls -la "$DATA_DIR/augmented/" 2>/dev/null || echo "  Augmented directory not found"
+        echo "Status: ⚠️  FAILED (non-critical)"
+        echo "Sample generation failed, but training was successful"
+    fi
+else
+    echo "⚠️  test_generation.py not found, skipping sample generation"
+    GEN_EXIT_CODE=0
+fi
+
+################################################################################
+# FINAL SUMMARY
+################################################################################
+echo ""
+echo "======================================================================"
+echo "                    COMPLETE PIPELINE SUMMARY"
+echo "======================================================================"
+echo "Job ID: $SLURM_JOB_ID"
+echo "Node: $SLURM_NODELIST"
+echo "End Time: $(date)"
+echo ""
+echo "Phase Results:"
+echo "  1. Data Preparation:  $([ $DATA_PREP_EXIT_CODE -eq 0 ] && echo '✅ SUCCESS' || echo '❌ FAILED')"
+echo "  2. Model Training:    $([ $TRAIN_EXIT_CODE -eq 0 ] && echo '✅ SUCCESS' || echo '❌ FAILED')"
+echo "  3. Sample Generation: $([ $GEN_EXIT_CODE -eq 0 ] && echo '✅ SUCCESS' || echo '⚠️  SKIPPED/FAILED')"
+echo ""
+
+# Overall status
+if [ $DATA_PREP_EXIT_CODE -eq 0 ] && [ $TRAIN_EXIT_CODE -eq 0 ]; then
+    echo "Overall Status: ✅ SUCCESS"
+    echo ""
+    echo "📁 Output Locations:"
+    echo "  Data:        $DATA_DIR/augmented/audio/"
+    echo "  Checkpoints: $PROJECT_DIR/checkpoints/"
+    echo "  Samples:     $PROJECT_DIR/generated_samples/"
+    echo "  Outputs:     $OUTPUT_DIR/"
+    echo ""
+    echo "📊 Statistics:"
+
+    # Count files
+    if [ -f "$OUTPUT_DIR/mts_final_dataset.csv" ]; then
+        DATASET_ROWS=$(wc -l < "$OUTPUT_DIR/mts_final_dataset.csv")
+        echo "  Dataset rows: $((DATASET_ROWS - 1))"
+    fi
+
+    if [ -d "$DATA_DIR/augmented/audio" ]; then
+        AUDIO_COUNT=$(find $DATA_DIR/augmented/audio -type f 2>/dev/null | wc -l)
+        AUDIO_SIZE=$(du -sh $DATA_DIR/augmented/audio 2>/dev/null | awk '{print $1}')
+        echo "  Audio files:  $AUDIO_COUNT ($AUDIO_SIZE)"
+    fi
+
+    if [ -d "$PROJECT_DIR/checkpoints" ]; then
+        CHECKPOINT_COUNT=$(ls $PROJECT_DIR/checkpoints/*.pt 2>/dev/null | wc -l)
+        echo "  Checkpoints:  $CHECKPOINT_COUNT"
+    fi
+
+    if [ -d "$PROJECT_DIR/generated_samples" ]; then
+        SAMPLE_COUNT=$(ls $PROJECT_DIR/generated_samples/*.wav 2>/dev/null | wc -l)
+        echo "  Samples:      $SAMPLE_COUNT"
     fi
 
     echo ""
-    echo "📁 Key Output Files:"
-    find $OUTPUT_DIR -type f \( -name "*.json" -o -name "*.csv" -o -name "*.md" \) 2>/dev/null | head -20
+    echo "🎉 All phases completed successfully!"
+    echo ""
+    echo "Next steps:"
+    echo "  1. Check training log: /data/gpfs/projects/punim2072/MTS/out/mts-complete-pipeline-${SLURM_JOB_ID}.out"
+    echo "  2. Download samples for listening"
+    echo "  3. Run long-form generation: python3 generate_long_form.py"
+
+    FINAL_EXIT_CODE=0
 else
-    echo "Status: ❌ FAILED"
-    echo "Check error logs for details"
+    echo "Overall Status: ❌ FAILED"
+    echo ""
+    echo "Failed phases:"
+    [ $DATA_PREP_EXIT_CODE -ne 0 ] && echo "  ❌ Data Preparation (exit code: $DATA_PREP_EXIT_CODE)"
+    [ $TRAIN_EXIT_CODE -ne 0 ] && echo "  ❌ Model Training (exit code: $TRAIN_EXIT_CODE)"
+    echo ""
+    echo "Check error log: /data/gpfs/projects/punim2072/MTS/err/mts-complete-pipeline-${SLURM_JOB_ID}.err"
+
+    # Set exit code to first failure
+    if [ $DATA_PREP_EXIT_CODE -ne 0 ]; then
+        FINAL_EXIT_CODE=$DATA_PREP_EXIT_CODE
+    else
+        FINAL_EXIT_CODE=$TRAIN_EXIT_CODE
+    fi
 fi
+
+echo "======================================================================"
 
 # Cleanup
 conda deactivate
 
-echo "================================"
-echo "Job Summary"
-echo "Job ID: $SLURM_JOB_ID"
-echo "Exit Code: $EXIT_CODE"
-echo "End Time: $(date)"
-echo "================================"
-
-exit $EXIT_CODE
+exit $FINAL_EXIT_CODE

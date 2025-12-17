@@ -429,20 +429,32 @@ class MTSModel(nn.Module):
             beta_schedule=config.beta_schedule
         )
         
+        # Projection from EnCodec codebooks to latent space
+        # EnCodec uses 8 codebooks at 6.0kbps, we need to project to latent_dim
+        self.encodec_proj = nn.Conv1d(
+            self.encodec.n_codebooks,  # 8 codebooks
+            config.encodec_latent_dim,  # 128 latent dim
+            kernel_size=1
+        )
+
         # 30-second compression network
         self.compression = CompressionNetwork(
             input_dim=config.encodec_latent_dim,
             hidden_dim=256,
             output_dim=config.compression_latent_dim
         )
-        
+
         # CFG dropout embedding
         self.null_text_emb = nn.Parameter(torch.randn(1, 1, config.text_dim) * 0.02)
         self.null_struct_emb = nn.Parameter(torch.randn(1, 1, config.structure_dim) * 0.02)
     
     def encode_audio(self, audio: torch.Tensor) -> torch.Tensor:
         """Encode audio waveform to latent tokens."""
-        return self.encodec.encode(audio)
+        frames, codes = self.encodec.encode(audio)
+        # codes shape: (batch, n_codebooks=8, seq_len)
+        # Project to latent space: (batch, latent_dim=128, seq_len)
+        latents = self.encodec_proj(codes.float())
+        return latents
     
     def decode_audio(self, latents: torch.Tensor) -> torch.Tensor:
         """Decode latent tokens to audio waveform."""
@@ -478,6 +490,26 @@ class MTSModel(nn.Module):
         
         return self.structure_encoder(section_types, section_props)
     
+    def compute_loss(
+        self,
+        audio: torch.Tensor,
+        text: Union[str, List[str]],
+        structure: Optional[Dict] = None
+    ) -> torch.Tensor:
+        """
+        Compute training loss (simplified interface for training loop).
+
+        Args:
+            audio: Audio waveform (batch, samples)
+            text: Text prompts
+            structure: Optional structure annotations
+
+        Returns:
+            Total loss value
+        """
+        losses = self.training_step(audio, text, structure)
+        return losses["loss"]
+
     def training_step(
         self,
         audio: torch.Tensor,
@@ -486,57 +518,54 @@ class MTSModel(nn.Module):
     ) -> Dict[str, torch.Tensor]:
         """
         Single training step.
-        
+
         Args:
             audio: Audio waveform (batch, samples)
             text: Text prompts
             structure: Optional structure annotations
-            
+
         Returns:
             Dict with losses
         """
         device = audio.device
         batch_size = audio.shape[0]
-        
+
         # Encode audio to latents
-        with torch.no_grad():
-            latents = self.encode_audio(audio)
-            # Convert from (batch, codebooks, seq) to (batch, latent_dim, seq)
-            # This requires a learned projection in practice
-            latents = latents.float()
-        
+        # encode_audio now projects from codebooks to latent space
+        latents = self.encode_audio(audio)
+
         # Encode conditioning
         text_emb = self.encode_text(text, device)
-        
+
         struct_emb = None
         if structure is not None and self.structure_encoder is not None:
             struct_emb = self.encode_structure(structure, device)
-        
+
         # Classifier-free guidance dropout
         if self.training and self.config.cfg_dropout > 0:
             drop_text = torch.rand(batch_size, device=device) < self.config.cfg_dropout
             drop_struct = torch.rand(batch_size, device=device) < self.config.cfg_dropout
-            
+
             null_text = self.null_text_emb.expand(batch_size, -1, -1)
             text_emb = torch.where(drop_text[:, None, None], null_text, text_emb)
-            
+
             if struct_emb is not None:
                 null_struct = self.null_struct_emb.expand(batch_size, -1, -1)
                 struct_emb = torch.where(drop_struct[:, None, None], null_struct, struct_emb)
-        
+
         # Sample timesteps
         t = torch.randint(0, self.config.diffusion_timesteps, (batch_size,), device=device)
-        
+
         # Diffusion loss
         diff_loss = self.diffusion.p_losses(latents, t, text_emb, struct_emb)
-        
+
         # Compression reconstruction loss
         latents_recon, compressed = self.compression(latents, return_compressed=True)
         compress_loss = F.mse_loss(latents_recon, latents)
-        
+
         # Total loss
         total_loss = diff_loss + 0.1 * compress_loss
-        
+
         return {
             "loss": total_loss,
             "diffusion_loss": diff_loss,

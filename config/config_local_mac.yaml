@@ -1,0 +1,132 @@
+data:
+  dataset_name: ccmusic-database/music_genre
+  cache_dir: ./cache
+  data_dir: ./data
+  output_dir: ./outputs
+  target_sample_rate: 24000
+  use_simulated_data: false
+  use_fma_dataset: true
+  fma_audio_dir: ./fma_data/fma_small
+  fma_metadata_path: ./fma_data/fma_metadata/tracks.csv
+  fma_max_files: 50
+  fma_clip_duration: 30.0
+  custom_audio_dir: null
+  huggingface_token: null
+augmentation:
+  enabled: true
+  augmentation_factor: 2
+  preserve_original: true
+  save_audio: true
+  audio_format: wav
+  suppress_warnings: false
+  use_high_quality: true
+  normalize_audio: true
+  preserve_dynamics: true
+  techniques:
+    pitch_shift:
+      enabled: true
+      probability: 0.6
+      range_semitones:
+      - -1
+      - 1
+      preserve_tempo: true
+      use_high_quality: true
+    tempo_scale:
+      enabled: true
+      probability: 0.6
+      range_factor:
+      - 0.95
+      - 1.05
+      preserve_pitch: true
+      use_high_quality: true
+    noise_addition:
+      enabled: true
+      probability: 0.3
+      snr_db_range:
+      - 30
+      - 50
+      noise_types:
+      - gaussian
+    eq_filter:
+      enabled: true
+      probability: 0.2
+      gain_range_db:
+      - -2
+      - 2
+      frequency_ranges:
+        low:
+        - 60
+        - 250
+        mid:
+        - 250
+        - 4000
+        high:
+        - 4000
+        - 8000
+    reverb:
+      enabled: true
+      probability: 0.2
+      room_sizes:
+      - small
+      - medium
+      wet_mix_range:
+      - 0.05
+      - 0.2
+      decay_time_range:
+      - 0.5
+      - 2.0
+text_generation:
+  enabled: true
+  model_name: sentence-transformers/all-MiniLM-L6-v2
+  prompt_pool_size: 100
+  use_embedding_similarity: true
+  cache_dir: ./cache/text_models
+  use_mps: true
+data_organization:
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  random_state: 42
+  stratify_by_genre: true
+  segment_durations:
+  - 30
+  min_song_duration: 30
+structure_processing:
+  enabled: true
+  structure_subset_size: 50
+  create_conditioning_data: true
+pipeline:
+  save_intermediate_results: true
+  continue_on_error: true
+  parallel_processing: false
+  validation_enabled: true
+  batch_size: 8
+  max_workers: 2
+  use_mac_neural_engine: true
+  use_metal: true
+  low_memory_mode: false
+logging:
+  level: INFO
+  save_logs: true
+  console_output: true
+advanced:
+  use_gpu: false
+  use_mps: true
+  use_coreml: true
+  precision: float32
+  random_seed: 42
+  audio_quality:
+    bit_depth: 16
+    use_dithering: true
+    anti_alias_filter: true
+    preserve_peak: true
+    target_lufs: -14.0
+  validation:
+    check_file_integrity: true
+    verify_audio_quality: true
+    validate_text_prompts: true
+    check_structure_coherence: false
+    min_snr_db: 25.0
+    max_distortion_thd: 0.1
+    check_clipping: true
+    check_silence: true

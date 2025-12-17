@@ -161,22 +161,62 @@ class MTSDataPipeline:
         for dir_path in dirs_to_create:
             Path(dir_path).mkdir(parents=True, exist_ok=True)
     
-    def run_complete_pipeline(self) -> Dict:
+    def run_complete_pipeline(self, force_reload: bool = False) -> Dict:
         """
         Run the complete MTS data preparation pipeline
         Following all steps from the project plan
+
+        Args:
+            force_reload: If True, reprocess all data even if it exists
         """
         self.logger.info("🚀 Starting MTS Data Preparation Pipeline")
-        
+
         start_time = datetime.now()
-        
+
         try:
+            # Check if processed data already exists
+            processed_data_file = Path(self.config["data"]["output_dir"]) / "mts_final_dataset.csv"
+
+            if processed_data_file.exists() and not force_reload:
+                self.logger.info("=" * 60)
+                self.logger.info("✅ FOUND EXISTING PROCESSED DATA")
+                self.logger.info("=" * 60)
+                self.logger.info(f"📂 Loading from: {processed_data_file}")
+                self.logger.info("   Use --force-reload to reprocess from scratch")
+
+                # Load existing data
+                df = pd.read_csv(processed_data_file)
+
+                self.pipeline_state["step_completed"]["all"] = True
+                self.pipeline_state["data_counts"]["total_samples"] = len(df)
+
+                summary = {
+                    "status": "loaded_existing",
+                    "total_samples": len(df),
+                    "data_file": str(processed_data_file),
+                    "message": "Loaded existing processed data"
+                }
+
+                self.logger.info(f"\n✅ Loaded {len(df)} existing samples")
+                self.logger.info(f"   Dataset ready for training!")
+
+                return summary
+
             # Step 1: Data Loading and Initial Processing
             self.logger.info("=" * 60)
             self.logger.info("STEP 1: DATA LOADING AND INITIAL PROCESSING")
             self.logger.info("=" * 60)
-            
-            original_songs = self._step_1_data_loading()
+
+            # Check for cached processed songs
+            step1_cache = Path(self.config["data"]["data_dir"]) / "processed" / "step1_processed_songs.json"
+
+            if step1_cache.exists() and not force_reload:
+                self.logger.info(f"📂 Loading cached processed songs from: {step1_cache}")
+                with open(step1_cache, 'r') as f:
+                    original_songs = json.load(f)
+                self.logger.info(f"✅ Loaded {len(original_songs)} cached songs")
+            else:
+                original_songs = self._step_1_data_loading()
             self.pipeline_state["step_completed"]["data_loading"] = True
             self.pipeline_state["data_counts"]["original_songs"] = len(original_songs)
             
@@ -694,9 +734,9 @@ The MTS data preparation pipeline is complete and ready for deployment in the mo
 
 def main():
     """Main entry point for the MTS data pipeline"""
-    
+
     parser = argparse.ArgumentParser(description="MTS Data Preparation Pipeline")
-    parser.add_argument("--config", default="config/config.yaml", 
+    parser.add_argument("--config", default="config/config.yaml",
                        help="Path to configuration file")
     parser.add_argument("--step", choices=["all", "1", "2", "3", "4", "5", "6"],
                        default="all", help="Run specific step (default: all)")
@@ -704,9 +744,11 @@ def main():
                        help="Run validation checks")
     parser.add_argument("--output-dir", default="./outputs",
                        help="Output directory")
-    
+    parser.add_argument("--force-reload", action="store_true",
+                       help="Force reprocessing even if data exists")
+
     args = parser.parse_args()
-    
+
     # Update output directory in config if specified
     if args.output_dir != "./outputs":
         config_path = Path(args.config)
@@ -716,12 +758,12 @@ def main():
             config["data"]["output_dir"] = args.output_dir
             with open(config_path, 'w') as f:
                 yaml.dump(config, f)
-    
+
     # Initialize and run pipeline
     pipeline = MTSDataPipeline(config_path=args.config)
-    
+
     if args.step == "all":
-        results = pipeline.run_complete_pipeline()
+        results = pipeline.run_complete_pipeline(force_reload=args.force_reload)
     else:
         # Run individual step (implementation would go here)
         print(f"Running individual step {args.step} - Not implemented in this demo")
