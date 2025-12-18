@@ -1,135 +1,86 @@
-# MTS-2 Quick Reference Card
+# Quick Reference Card
 
-## Single Command to Run Everything
+## ⚡ Fastest Way to Update HPC
 
 ```bash
-sbatch mts_pipeline.slurm
-```
-
-That's it! This runs:
-1. Data preparation (download + augmentation)
-2. Model training (200 epochs on GPU)
-3. Sample generation (test outputs)
-
----
-
-## Essential Commands
-
-### Submit Job
-```bash
+ssh gangyiz@spartan.hpc.unimelb.edu.au
 cd /data/gpfs/projects/punim2072/MTS/MTS/MTS-2
+scancel $(squeue -u gangyiz -h -o "%i")  # Cancel all your jobs
+git pull origin main
+rm outputs/mts_final_dataset.csv
 sbatch mts_pipeline.slurm
 ```
 
-### Check Status
+## 📋 What Was Fixed
+
+| Issue | Fix | File |
+|-------|-----|------|
+| Empty audio paths | Added audio_path column | `src/batch_processor.py` |
+| TypeError on NaN | Handle NaN values | `train_mts_hpc.py`, `verify_dataset.py` |
+| CCMusic → FMA | Delete old CSV, regenerate with FMA | Config already set |
+| Packages in ~home | Install to project directory | `mts_pipeline.slurm` |
+| No FMA verification | Auto-download in Phase 0 | `mts_pipeline.slurm` |
+
+## 📚 Documentation Files
+
+| File | Purpose |
+|------|---------|
+| **[HPC_PULL_GUIDE.md](HPC_PULL_GUIDE.md)** | **START HERE** - How to pull updates on HPC |
+| [README_FIXES.md](README_FIXES.md) | Master summary of all fixes |
+| [URGENT_FIX_STEPS.md](URGENT_FIX_STEPS.md) | Alternative: Using scp instead of git |
+| [FIX_CCMUSIC_TO_FMA.md](FIX_CCMUSIC_TO_FMA.md) | Why CCMusic → FMA switch |
+| [PACKAGE_INSTALLATION_CHANGES.md](PACKAGE_INSTALLATION_CHANGES.md) | Package path details |
+
+## ✅ Verification Commands
+
 ```bash
-squeue -u $USER
+# Check git updated
+git log --oneline -1
+# Should show: c05c61e Add HPC pull guide
+
+# Check SLURM has updates
+grep "PIP_PREFIX" mts_pipeline.slurm
+# Should show: export PIP_PREFIX=$PROJECT_DIR/packages
+
+# Check CSV deleted
+ls outputs/mts_final_dataset.csv
+# Should show: No such file or directory
+
+# Check config
+grep "use_fma_dataset" config/config_hpc.yaml
+# Should show: use_fma_dataset: true
 ```
 
-### Watch Progress (live)
+## 🎯 Expected Results
+
+**Phase 0 (1 min):** ✅ FMA data verified  
+**Phase 1 (10-20 min):** ✅ 50 FMA songs → 150 samples with valid audio paths  
+**Phase 2 (4-8 hrs):** ✅ 100% verification rate → Training succeeds  
+**Phase 3 (5-10 min):** ✅ Generates test samples
+
+## 🔍 Monitor Job
+
 ```bash
+# Watch output
 tail -f /data/gpfs/projects/punim2072/MTS/out/mts-complete-pipeline-*.out
+
+# Check errors
+tail -f /data/gpfs/projects/punim2072/MTS/err/mts-complete-pipeline-*.err
+
+# Check job status
+squeue -u gangyiz
 ```
 
-### View Final Results
-```bash
-# Last 50 lines show summary
-cat /data/gpfs/projects/punim2072/MTS/out/mts-complete-pipeline-<JOB_ID>.out | tail -50
-```
-
-### Cancel Job
-```bash
-scancel <JOB_ID>
-```
-
----
-
-## Output Locations
-
-```
-data/augmented/audio/     → Augmented audio files
-outputs/                  → Dataset CSV and statistics
-checkpoints/              → Trained model files
-generated_samples/        → Generated test audio
-```
-
----
-
-## Key Files
-
-- **mts_pipeline.slurm** - Main unified script (submit this)
-- **SLURM_SUBMISSION_GUIDE.md** - Detailed documentation
-- **PIPELINE_UPDATE_SUMMARY.md** - What changed
-
----
-
-## Customization
-
-Edit `mts_pipeline.slurm` lines 403-406:
-
-```bash
-BATCH_SIZE=8      # Training batch size
-EPOCHS=200        # Number of epochs (reduce for testing)
-LR=1e-4          # Learning rate
-SAVE_EVERY=20     # Checkpoint frequency
-```
-
----
-
-## Smart Features
-
-✅ **Auto-skip data prep** if CSV exists
-✅ **Auto-resume training** from checkpoint
-✅ **Graceful failure** handling per phase
-✅ **Email notifications** on start/end/fail
-
----
-
-## Troubleshooting
+## 🚨 If Something Goes Wrong
 
 | Problem | Solution |
 |---------|----------|
-| Job pending too long | Check queue: `squeue -p gpu-h100` |
-| Out of memory | Reduce `BATCH_SIZE=4` (line 403) |
-| Need faster test | Set `EPOCHS=5` (line 404) |
-| Data prep re-running | Check `outputs/mts_final_dataset.csv` exists |
+| Git merge conflict | `git reset --hard origin/main` |
+| Still sees CCMusic | Delete CSV: `rm outputs/mts_final_dataset.csv` |
+| TypeError still occurs | Check git updated: `git log --oneline -1` |
+| Packages still in ~home | Re-pull: `git pull origin main` |
+| FMA data not found | Phase 0 auto-downloads (wait 20-30 min) |
 
 ---
 
-## Download Results
-
-```bash
-# From your local machine
-scp username@spartan.hpc.unimelb.edu.au:/path/to/generated_samples/*.wav ~/Downloads/
-```
-
----
-
-## Expected Timeline
-
-- **Data Prep**: 30-60 minutes
-- **Training**: 12-48 hours (depends on data size)
-- **Generation**: 5-10 minutes
-- **Total**: ~1-2 days for full run
-
----
-
-## Status Indicators
-
-```
-✅ SUCCESS  - Phase completed
-❌ FAILED   - Phase failed, job stopped
-⚠️  SKIPPED - Phase skipped (non-critical)
-```
-
----
-
-## Need Help?
-
-1. Check error log: `/data/gpfs/projects/punim2072/MTS/err/mts-complete-pipeline-<JOB_ID>.err`
-2. Review output log for details
-3. See [SLURM_SUBMISSION_GUIDE.md](SLURM_SUBMISSION_GUIDE.md) for full documentation
-
----
-
-**Quick Start**: `sbatch mts_pipeline.slurm` 🚀
+**Need more details?** → [HPC_PULL_GUIDE.md](HPC_PULL_GUIDE.md)
