@@ -492,11 +492,36 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting data preparation..."
 
 cd $PROJECT_DIR
 
-# Check if data already exists
+# Check if data already exists AND is valid
 if [ -f "$OUTPUT_DIR/mts_final_dataset.csv" ]; then
-    echo "✅ Found existing processed data: $OUTPUT_DIR/mts_final_dataset.csv"
-    echo "   Skipping data preparation phase"
-    DATA_PREP_EXIT_CODE=0
+    echo "📄 Found existing CSV: $OUTPUT_DIR/mts_final_dataset.csv"
+
+    # Check if CSV has audio_path column (validates it's complete)
+    if head -1 "$OUTPUT_DIR/mts_final_dataset.csv" | grep -q "audio_path"; then
+        echo "✅ CSV is valid (has audio_path column)"
+        echo "   Skipping data preparation phase"
+        DATA_PREP_EXIT_CODE=0
+    else
+        echo "⚠️  CSV exists but is INVALID (missing audio_path column)"
+        echo "   This CSV was created by the old buggy version"
+        echo "   Deleting and regenerating..."
+
+        # Backup the old CSV
+        mv "$OUTPUT_DIR/mts_final_dataset.csv" "$OUTPUT_DIR/mts_final_dataset.csv.backup.$(date +%s)"
+        echo "   Old CSV backed up"
+
+        # Run data preparation
+        echo "   Running data preparation to create proper CSV..."
+        if [ -f "$PROJECT_DIR/run_batch_pipeline.py" ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using batch processing for memory efficiency..."
+            python -u run_batch_pipeline.py --config $PIPELINE_CONFIG --batch-size 100 --max-memory 75
+        else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using standard pipeline..."
+            python -u run_pipeline.py --config config/config_hpc.yaml
+        fi
+
+        DATA_PREP_EXIT_CODE=$?
+    fi
 else
     echo "⚠️  No processed data found, running data preparation..."
 
@@ -558,25 +583,42 @@ fi
 # Check if CSV has audio_path column
 if ! head -1 "$OUTPUT_DIR/mts_final_dataset.csv" | grep -q "audio_path"; then
     echo "❌ ERROR: Dataset CSV missing 'audio_path' column"
-    echo "   This is a bug in the data preparation phase"
+    echo "   This means data preparation did not complete successfully"
     echo ""
-    echo "🔧 Attempting to regenerate CSV with audio paths..."
 
-    if [ -f "$PROJECT_DIR/regenerate_dataset_csv.py" ]; then
-        python -u regenerate_dataset_csv.py
-        CSV_REGEN_EXIT=$?
+    # Check if intermediate files exist for regeneration
+    if [ -f "$OUTPUT_DIR/step3_labeled_dataset.csv" ] && [ -f "$OUTPUT_DIR/augmentation/step2_augmentation_results.json" ]; then
+        echo "🔧 Attempting to regenerate CSV with audio paths..."
 
-        if [ $CSV_REGEN_EXIT -eq 0 ]; then
-            echo "✅ CSV regenerated successfully"
+        if [ -f "$PROJECT_DIR/regenerate_dataset_csv.py" ]; then
+            python -u regenerate_dataset_csv.py
+            CSV_REGEN_EXIT=$?
+
+            if [ $CSV_REGEN_EXIT -eq 0 ]; then
+                echo "✅ CSV regenerated successfully"
+            else
+                echo "❌ ERROR: Failed to regenerate CSV"
+                echo "   Intermediate files exist but regeneration failed"
+                conda deactivate
+                exit 1
+            fi
         else
-            echo "❌ ERROR: Failed to regenerate CSV"
-            echo "   Please check the intermediate files and regenerate manually"
+            echo "❌ ERROR: regenerate_dataset_csv.py not found"
+            echo "   Cannot fix missing audio_path column automatically"
             conda deactivate
             exit 1
         fi
     else
-        echo "❌ ERROR: regenerate_dataset_csv.py not found"
-        echo "   Cannot fix missing audio_path column automatically"
+        echo "❌ ERROR: Cannot regenerate CSV - intermediate files missing"
+        echo "   Missing one or more of:"
+        echo "     - $OUTPUT_DIR/step3_labeled_dataset.csv"
+        echo "     - $OUTPUT_DIR/augmentation/step2_augmentation_results.json"
+        echo ""
+        echo "   This means Phase 1 (Data Preparation) must be run first"
+        echo ""
+        echo "💡 Solutions:"
+        echo "   1. Delete the incomplete CSV: rm $OUTPUT_DIR/mts_final_dataset.csv"
+        echo "   2. Rerun the job - Phase 1 will execute and create proper files"
         conda deactivate
         exit 1
     fi

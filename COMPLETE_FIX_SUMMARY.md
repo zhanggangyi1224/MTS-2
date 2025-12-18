@@ -162,7 +162,23 @@ Phase 2: Model Training
   🚀 Starting training...
 ```
 
-### If CSV Missing audio_path
+### If Old Buggy CSV Exists
+```
+Phase 1: Data Preparation
+  📄 Found existing CSV: outputs/mts_final_dataset.csv
+  ⚠️  CSV exists but is INVALID (missing audio_path column)
+  This CSV was created by the old buggy version
+  Deleting and regenerating...
+  Old CSV backed up
+  Running data preparation to create proper CSV...
+  [Phase 1 runs and creates correct CSV]
+
+Phase 2: Model Training
+  ✅ CSV is valid
+  [Training proceeds normally]
+```
+
+### If CSV Regeneration Needed (Intermediate Files Exist)
 ```
 Phase 2: Model Training
   ❌ ERROR: Dataset CSV missing 'audio_path' column
@@ -243,6 +259,62 @@ unzip fma_small.zip
 ✅ Training only starts with valid data
 ✅ Detailed logs showing exactly what's wrong
 ```
+
+## Troubleshooting Common Errors
+
+### Error: "Cannot regenerate CSV - intermediate files missing"
+
+**Symptoms:**
+```
+❌ ERROR: Dataset CSV missing 'audio_path' column
+❌ ERROR: Cannot regenerate CSV - intermediate files missing
+   Missing one or more of:
+     - outputs/step3_labeled_dataset.csv
+     - outputs/augmentation/step2_augmentation_results.json
+```
+
+**Cause:** You have an old, incomplete CSV file that was created by the buggy version of the code.
+
+**Solution:**
+```bash
+# Option 1: Delete the broken CSV and rerun (Recommended)
+ssh username@spartan.hpc.unimelb.edu.au
+cd /data/gpfs/projects/punim2072/MTS/MTS/MTS-2
+rm outputs/mts_final_dataset.csv
+sbatch mts_pipeline.slurm
+# Phase 1 will now run and create the correct CSV
+
+# Option 2: If you have the intermediate files elsewhere
+# Transfer step3_labeled_dataset.csv and augmentation results
+# Then run regenerate_dataset_csv.py manually
+```
+
+**What the updated SLURM script does:**
+Now automatically detects invalid CSV files in Phase 1, backs them up, and reruns data preparation.
+
+### Error: "File not found" for audio paths
+
+**Symptoms:**
+```
+⚠️  Error loading sample 1972: File not found 'fma_data/fma_small/002/000002.mp3'
+```
+
+**Cause:** FMA data not downloaded or in wrong location.
+
+**Solution:** Phase 0 of the updated SLURM script automatically handles this. If you see this error, ensure:
+1. Phase 0 completed successfully (check for FMA download messages)
+2. FMA data is in the correct directory: `$PROJECT_DIR/fma_data/fma_small/`
+
+### Error: "Empty audio_path"
+
+**Symptoms:**
+```
+⚠️  Error loading sample 1972: Empty audio_path
+```
+
+**Cause:** CSV has empty audio_path values (old buggy version).
+
+**Solution:** The updated SLURM script detects this in Phase 1 and automatically regenerates the CSV.
 
 ## Summary
 
