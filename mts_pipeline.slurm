@@ -502,14 +502,30 @@ cd $PROJECT_DIR
 if [ -f "$OUTPUT_DIR/mts_final_dataset.csv" ]; then
     echo "📄 Found existing CSV: $OUTPUT_DIR/mts_final_dataset.csv"
 
-    # Check if CSV has audio_path column (validates it's complete)
-    if head -1 "$OUTPUT_DIR/mts_final_dataset.csv" | grep -q "audio_path"; then
-        echo "✅ CSV is valid (has audio_path column)"
-        echo "   Skipping data preparation phase"
-        DATA_PREP_EXIT_CODE=0
-    else
+    # Check if CSV has audio_path column
+    if ! head -1 "$OUTPUT_DIR/mts_final_dataset.csv" | grep -q "audio_path"; then
         echo "⚠️  CSV exists but is INVALID (missing audio_path column)"
         echo "   This CSV was created by the old buggy version"
+        CSV_IS_VALID=false
+    else
+        # Column exists, now check if values are populated (not empty/CCMusic)
+        # Sample a few rows to check for empty audio_path or CCMusic data
+        SAMPLE_PATHS=$(tail -n +2 "$OUTPUT_DIR/mts_final_dataset.csv" | head -10 | cut -d',' -f1 | grep -c "ccmusic" || echo 0)
+
+        if [ "$SAMPLE_PATHS" -gt 5 ]; then
+            echo "⚠️  CSV exists but contains CCMusic data (empty audio paths)"
+            echo "   This CSV was created before FMA dataset switch"
+            CSV_IS_VALID=false
+        else
+            echo "✅ CSV is valid (has audio_path column with FMA data)"
+            echo "   Skipping data preparation phase"
+            CSV_IS_VALID=true
+            DATA_PREP_EXIT_CODE=0
+        fi
+    fi
+
+    # If CSV is invalid, delete and regenerate
+    if [ "$CSV_IS_VALID" = false ]; then
         echo "   Deleting and regenerating..."
 
         # Backup the old CSV
