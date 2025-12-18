@@ -137,12 +137,15 @@ The fix is permanent in the codebase:
 - [x] Bug identified
 - [x] Fix implemented in batch_processor.py
 - [x] Regeneration script created
-- [x] CSV regenerated with audio paths (150 rows, 0 missing)
-- [x] Verified audio files exist
+- [x] CSV regenerated with audio paths (150 rows, 0 missing) - LOCAL ONLY
+- [x] Verified audio files exist locally
 - [x] SLURM script enhanced with Phase 0 (FMA data verification)
+- [x] SLURM script updated with project-based package installation
 - [x] Added pre-training validation checks
 - [x] Added auto-repair for missing audio_path column
-- [ ] Tested on HPC (pending next SLURM job)
+- [x] Added NaN handling in train_mts_hpc.py and verify_dataset.py
+- [ ] Files transferred to HPC (PENDING - see URGENT_FIX_STEPS.md)
+- [ ] Tested on HPC (pending next SLURM job after file transfer)
 
 ## SLURM Script Enhancements Detail
 

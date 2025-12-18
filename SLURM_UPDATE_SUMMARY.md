@@ -42,10 +42,10 @@
 
 1. ✅ **src/batch_processor.py** - Added audio_path to CSV generation
 2. ✅ **regenerate_dataset_csv.py** - New script for CSV regeneration
-3. ✅ **verify_dataset.py** - New script for dataset integrity verification
-4. ✅ **train_mts_hpc.py** - Enhanced dataset loader with path verification
-5. ✅ **mts_pipeline.slurm** - Enhanced with Phase 0 and validation checks
-6. ✅ **outputs/mts_final_dataset.csv** - Regenerated with audio paths
+3. ✅ **verify_dataset.py** - New script for dataset integrity verification (handles NaN values)
+4. ✅ **train_mts_hpc.py** - Enhanced dataset loader with path verification (handles NaN values)
+5. ✅ **mts_pipeline.slurm** - Enhanced with Phase 0, validation checks, and project-based package installation
+6. ✅ **outputs/mts_final_dataset.csv** - Regenerated with audio paths (local only, needs regeneration on HPC)
 
 ## New SLURM Pipeline Flow
 
@@ -103,18 +103,19 @@ outputs/mts_final_dataset.csv
 # From your local machine:
 cd /Users/zhanggangyi/Desktop/MTS-2
 
-# Transfer updated files
-scp src/batch_processor.py username@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim2072/MTS/MTS/MTS-2/src/
-scp mts_pipeline.slurm username@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim2072/MTS/MTS/MTS-2/
-scp train_mts_hpc.py username@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim2072/MTS/MTS/MTS-2/
-scp regenerate_dataset_csv.py username@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim2072/MTS/MTS/MTS-2/
-scp verify_dataset.py username@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim2072/MTS/MTS/MTS-2/
+# Transfer all updated files at once
+scp src/batch_processor.py \
+    mts_pipeline.slurm \
+    train_mts_hpc.py \
+    regenerate_dataset_csv.py \
+    verify_dataset.py \
+    gangyiz@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim2072/MTS/MTS/MTS-2/
 
-# Optional: Transfer fixed CSV
-scp outputs/mts_final_dataset.csv username@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim2072/MTS/MTS/MTS-2/outputs/
+# Transfer batch_processor.py to src/ directory separately
+scp src/batch_processor.py gangyiz@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim2072/MTS/MTS/MTS-2/src/
 ```
 
-Replace `username` with your actual HPC username.
+**Note:** Do NOT transfer the local CSV file - it has CCMusic data and will cause errors. The HPC will generate a new CSV with FMA data in Phase 1.
 
 ## How to Run on HPC
 

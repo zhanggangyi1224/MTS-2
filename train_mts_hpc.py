@@ -101,7 +101,8 @@ class MTSDataset(Dataset):
         for i, sample in enumerate(self.samples[:sample_size]):
             audio_path = sample.get('audio_path', '')
 
-            if not audio_path:
+            # Handle NaN or non-string values
+            if pd.isna(audio_path) or not isinstance(audio_path, str) or not audio_path.strip():
                 empty_paths.append(sample.get('id', f'sample_{i}'))
             elif not Path(audio_path).exists():
                 missing_files.append((sample.get('id', f'sample_{i}'), audio_path))
@@ -141,8 +142,8 @@ class MTSDataset(Dataset):
             # Load audio
             audio_path = sample.get('audio_path', '')
 
-            # Check if path is empty
-            if not audio_path:
+            # Check if path is empty or NaN
+            if pd.isna(audio_path) or not isinstance(audio_path, str) or not audio_path.strip():
                 print(f"⚠️  Error loading sample {idx} ({sample_id}): Empty audio_path")
                 # Generate zero audio as fallback
                 audio = np.zeros(30 * self.sample_rate)

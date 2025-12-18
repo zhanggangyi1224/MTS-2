@@ -69,8 +69,8 @@ def verify_dataset(csv_path, max_check=50):
         sample_id = row.get('id', f'row_{idx}')
         audio_path = row.get('audio_path', '')
 
-        # Check for empty path
-        if not audio_path or pd.isna(audio_path):
+        # Check for empty path (including NaN and non-string values)
+        if pd.isna(audio_path) or not isinstance(audio_path, str) or not audio_path.strip():
             empty_paths.append((idx, sample_id))
             continue
 

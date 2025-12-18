@@ -24,10 +24,18 @@ Error loading sample 1972: Error opening '': System error.
 |------|--------|--------|
 | `src/batch_processor.py` | Added `audio_path` column to CSV generation | **CRITICAL** - Fixes root cause |
 | `regenerate_dataset_csv.py` | New script to rebuild CSV from intermediate files | **HIGH** - Quick fix for existing data |
-| `verify_dataset.py` | New verification script | **HIGH** - Pre-flight validation |
-| `train_mts_hpc.py` | Enhanced dataset loader with path checking | **MEDIUM** - Better error messages |
-| `mts_pipeline.slurm` | Added Phase 0 + pre-training checks | **HIGH** - Prevents bad runs |
-| `outputs/mts_final_dataset.csv` | Regenerated with audio paths | **CRITICAL** - Ready to use |
+| `verify_dataset.py` | New verification script with NaN handling | **HIGH** - Pre-flight validation |
+| `train_mts_hpc.py` | Enhanced dataset loader with NaN handling & path checking | **HIGH** - Prevents crashes |
+| `mts_pipeline.slurm` | Added Phase 0 + pre-training checks + project packages | **HIGH** - Complete fix |
+| `outputs/mts_final_dataset.csv` | Regenerated with audio paths | **LOCAL ONLY** - HPC needs new CSV |
+
+### ✅ New Documentation
+
+| File | Purpose |
+|------|---------|
+| `PACKAGE_INSTALLATION_CHANGES.md` | Package installation now uses project directory |
+| `FIX_CCMUSIC_TO_FMA.md` | Guide for switching from CCMusic to FMA dataset |
+| `URGENT_FIX_STEPS.md` | Quick reference for immediate HPC fixes |
 
 ### ✅ New Features
 
@@ -318,15 +326,26 @@ Now automatically detects invalid CSV files in Phase 1, backs them up, and rerun
 
 ## Summary
 
-**Status**: ✅ **READY FOR DEPLOYMENT**
+**Status**: ⚠️ **READY FOR DEPLOYMENT - ACTION REQUIRED**
 
 All fixes have been:
 - ✅ Implemented in code
 - ✅ Tested locally
 - ✅ Documented thoroughly
-- ✅ Ready for HPC transfer
+- ⚠️ **PENDING: Transfer to HPC** (see URGENT_FIX_STEPS.md)
 
-**Next Action**: Transfer files to HPC and submit job
+**Current HPC Status:**
+- ❌ Job 19878746 running with OLD files - will fail at Phase 2
+- ❌ HPC has CCMusic CSV with empty audio_paths (causes TypeError)
+- ❌ HPC has old SLURM script (packages go to home directory)
+
+**Required Actions:**
+1. Transfer updated files to HPC (all 5 files)
+2. Cancel running job (scancel 19878746)
+3. Delete broken CSV (rm outputs/mts_final_dataset.csv)
+4. Resubmit job (sbatch mts_pipeline.slurm)
+
+See **[URGENT_FIX_STEPS.md](URGENT_FIX_STEPS.md)** for complete instructions.
 
 ```bash
 sbatch mts_pipeline.slurm
