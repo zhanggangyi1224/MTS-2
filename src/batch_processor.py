@@ -721,6 +721,9 @@ class MTSBatchPipeline:
             song_id = song.get("id", "")
             structure_info = structured_songs.get(song_id, {})
             
+            # Get audio path - check both fields (augmented uses audio_file_path, original uses audio_path)
+            audio_path = song.get("audio_file_path", "") or song.get("audio_path", "")
+
             row = {
                 "id": song_id,
                 "original_id": song.get("original_id", ""),
@@ -738,7 +741,8 @@ class MTSBatchPipeline:
                 "structure_coherence": structure_info.get("structure_coherence_score", 0.0),
                 "prompt_length": len(song.get("text_prompt", "").split()),
                 "sample_rate": self.config["data"]["target_sample_rate"],
-                "processing_date": datetime.now().isoformat()
+                "processing_date": datetime.now().isoformat(),
+                "audio_path": audio_path
             }
             csv_data.append(row)
         

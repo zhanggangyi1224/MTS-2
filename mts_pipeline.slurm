@@ -24,7 +24,8 @@
 echo "======================================================================"
 echo "        MTS-2 Complete Pipeline - Single Job Execution"
 echo "======================================================================"
-echo "Phase 1: Data Preparation (download + augmentation)"
+echo "Phase 0: FMA Data Verification (check/download dataset)"
+echo "Phase 1: Data Preparation (augmentation + text generation)"
 echo "Phase 2: Model Training (GPU-accelerated)"
 echo "Phase 3: Sample Generation (quality validation)"
 echo "======================================================================"
@@ -337,6 +338,150 @@ fi
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Using config: $PIPELINE_CONFIG"
 
 ################################################################################
+# PHASE 0: FMA DATA VERIFICATION AND DOWNLOAD
+################################################################################
+echo ""
+echo "======================================================================"
+echo "PHASE 0: FMA DATA VERIFICATION"
+echo "======================================================================"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Checking FMA dataset availability..."
+
+# Define FMA data paths
+FMA_DATA_DIR="$PROJECT_DIR/fma_data"
+FMA_SMALL_DIR="$FMA_DATA_DIR/fma_small"
+FMA_METADATA_DIR="$FMA_DATA_DIR/fma_metadata"
+FMA_SMALL_ZIP="$FMA_DATA_DIR/fma_small.zip"
+FMA_METADATA_ZIP="$FMA_DATA_DIR/fma_metadata.zip"
+
+# Function to check if FMA data is complete
+check_fma_data() {
+    local has_metadata=false
+    local has_audio=false
+
+    # Check metadata
+    if [ -d "$FMA_METADATA_DIR" ] && [ -f "$FMA_METADATA_DIR/tracks.csv" ]; then
+        echo "  ✅ FMA metadata found: $FMA_METADATA_DIR"
+        has_metadata=true
+    else
+        echo "  ❌ FMA metadata missing"
+    fi
+
+    # Check audio files
+    if [ -d "$FMA_SMALL_DIR" ]; then
+        audio_count=$(find "$FMA_SMALL_DIR" -name "*.mp3" 2>/dev/null | wc -l)
+        if [ "$audio_count" -gt 7000 ]; then
+            echo "  ✅ FMA audio found: $audio_count files in $FMA_SMALL_DIR"
+            has_audio=true
+        else
+            echo "  ⚠️  FMA audio incomplete: only $audio_count files found (expected ~8000)"
+        fi
+    else
+        echo "  ❌ FMA audio directory missing: $FMA_SMALL_DIR"
+    fi
+
+    if [ "$has_metadata" = true ] && [ "$has_audio" = true ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to download FMA data
+download_fma_data() {
+    echo ""
+    echo "🔽 Downloading FMA dataset..."
+
+    mkdir -p "$FMA_DATA_DIR"
+    cd "$FMA_DATA_DIR"
+
+    # Download metadata if needed
+    if [ ! -d "$FMA_METADATA_DIR" ]; then
+        if [ ! -f "$FMA_METADATA_ZIP" ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Downloading FMA metadata (342 MB)..."
+            wget -c https://os.unil.cloud.switch.ch/fma/fma_metadata.zip -O "$FMA_METADATA_ZIP" || {
+                echo "❌ ERROR: Failed to download metadata"
+                return 1
+            }
+        fi
+
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Extracting FMA metadata..."
+        unzip -q "$FMA_METADATA_ZIP" -d "$FMA_DATA_DIR" || {
+            echo "❌ ERROR: Failed to extract metadata"
+            return 1
+        }
+        echo "✅ Metadata extracted"
+    fi
+
+    # Download audio if needed
+    if [ ! -d "$FMA_SMALL_DIR" ] || [ "$(find "$FMA_SMALL_DIR" -name "*.mp3" 2>/dev/null | wc -l)" -lt 7000 ]; then
+        if [ ! -f "$FMA_SMALL_ZIP" ]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Downloading FMA audio files (7.2 GB)..."
+            echo "⚠️  This may take 15-30 minutes depending on network speed"
+            wget -c https://os.unil.cloud.switch.ch/fma/fma_small.zip -O "$FMA_SMALL_ZIP" || {
+                echo "❌ ERROR: Failed to download audio files"
+                return 1
+            }
+        fi
+
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Extracting FMA audio files..."
+        echo "⚠️  This may take 10-15 minutes"
+        unzip -q "$FMA_SMALL_ZIP" -d "$FMA_DATA_DIR" || {
+            echo "❌ ERROR: Failed to extract audio files"
+            return 1
+        }
+        echo "✅ Audio files extracted"
+    fi
+
+    cd "$PROJECT_DIR"
+    return 0
+}
+
+# Check if FMA data exists and is complete
+if check_fma_data; then
+    echo ""
+    echo "✅ FMA dataset is ready!"
+    FMA_DATA_READY=true
+else
+    echo ""
+    echo "⚠️  FMA dataset incomplete or missing"
+    echo "   Attempting to download FMA dataset..."
+
+    if download_fma_data; then
+        echo ""
+        echo "✅ FMA dataset download complete!"
+
+        # Verify again
+        if check_fma_data; then
+            FMA_DATA_READY=true
+            echo "✅ FMA dataset verified and ready!"
+        else
+            echo "❌ ERROR: FMA dataset verification failed after download"
+            FMA_DATA_READY=false
+        fi
+    else
+        echo "❌ ERROR: Failed to download FMA dataset"
+        FMA_DATA_READY=false
+    fi
+fi
+
+# Summary
+echo ""
+echo "======================================================================"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Phase 0 Status: $([ "$FMA_DATA_READY" = true ] && echo '✅ COMPLETE' || echo '⚠️  INCOMPLETE')"
+echo "======================================================================"
+
+if [ "$FMA_DATA_READY" != true ]; then
+    echo ""
+    echo "⚠️  WARNING: FMA data not available"
+    echo "   Pipeline will continue but may use fallback/synthetic audio"
+    echo "   To manually download:"
+    echo "     wget https://os.unil.cloud.switch.ch/fma/fma_metadata.zip"
+    echo "     wget https://os.unil.cloud.switch.ch/fma/fma_small.zip"
+    echo "     unzip fma_metadata.zip -d fma_data/"
+    echo "     unzip fma_small.zip -d fma_data/"
+fi
+
+################################################################################
 # PHASE 1: DATA PREPARATION
 ################################################################################
 echo ""
@@ -399,12 +544,142 @@ echo "PHASE 2: MODEL TRAINING"
 echo "======================================================================"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting model training..."
 
+# Verify dataset CSV exists and has audio_path column
+echo ""
+echo "🔍 Verifying dataset before training..."
+
+if [ ! -f "$OUTPUT_DIR/mts_final_dataset.csv" ]; then
+    echo "❌ ERROR: Dataset CSV not found: $OUTPUT_DIR/mts_final_dataset.csv"
+    echo "   Phase 1 must complete successfully before training"
+    conda deactivate
+    exit 1
+fi
+
+# Check if CSV has audio_path column
+if ! head -1 "$OUTPUT_DIR/mts_final_dataset.csv" | grep -q "audio_path"; then
+    echo "❌ ERROR: Dataset CSV missing 'audio_path' column"
+    echo "   This is a bug in the data preparation phase"
+    echo ""
+    echo "🔧 Attempting to regenerate CSV with audio paths..."
+
+    if [ -f "$PROJECT_DIR/regenerate_dataset_csv.py" ]; then
+        python -u regenerate_dataset_csv.py
+        CSV_REGEN_EXIT=$?
+
+        if [ $CSV_REGEN_EXIT -eq 0 ]; then
+            echo "✅ CSV regenerated successfully"
+        else
+            echo "❌ ERROR: Failed to regenerate CSV"
+            echo "   Please check the intermediate files and regenerate manually"
+            conda deactivate
+            exit 1
+        fi
+    else
+        echo "❌ ERROR: regenerate_dataset_csv.py not found"
+        echo "   Cannot fix missing audio_path column automatically"
+        conda deactivate
+        exit 1
+    fi
+fi
+
+# Count rows and verify audio paths
+TOTAL_ROWS=$(wc -l < "$OUTPUT_DIR/mts_final_dataset.csv")
+TOTAL_ROWS=$((TOTAL_ROWS - 1))  # Subtract header
+echo "  📊 Dataset contains: $TOTAL_ROWS samples"
+
+# Sample a few rows to check audio paths
+echo "  🔍 Sampling audio paths from CSV..."
+SAMPLE_PATHS=$(tail -n +2 "$OUTPUT_DIR/mts_final_dataset.csv" | cut -d',' -f18 | head -5)
+MISSING_PATHS=0
+
+for path in $SAMPLE_PATHS; do
+    if [ -z "$path" ]; then
+        MISSING_PATHS=$((MISSING_PATHS + 1))
+    fi
+done
+
+if [ $MISSING_PATHS -gt 0 ]; then
+    echo "  ⚠️  WARNING: Found $MISSING_PATHS empty audio paths in sample"
+    echo "     Training may fail for some samples"
+else
+    echo "  ✅ Audio paths present in CSV"
+fi
+
+# Verify at least some audio files exist
+echo "  🔍 Checking audio file availability..."
+
+# Check for augmented audio files
+if [ -d "$DATA_DIR/augmented/audio" ]; then
+    AUG_AUDIO_COUNT=$(find "$DATA_DIR/augmented/audio" -type f \( -name "*.wav" -o -name "*.mp3" \) 2>/dev/null | wc -l)
+    echo "  ✅ Augmented audio files: $AUG_AUDIO_COUNT"
+else
+    echo "  ⚠️  No augmented audio directory found"
+    AUG_AUDIO_COUNT=0
+fi
+
+# Check for original FMA audio files
+if [ -d "$FMA_SMALL_DIR" ]; then
+    FMA_AUDIO_COUNT=$(find "$FMA_SMALL_DIR" -name "*.mp3" 2>/dev/null | wc -l)
+    echo "  ✅ FMA audio files: $FMA_AUDIO_COUNT"
+else
+    echo "  ⚠️  FMA audio directory not found: $FMA_SMALL_DIR"
+    FMA_AUDIO_COUNT=0
+fi
+
+TOTAL_AUDIO_FILES=$((AUG_AUDIO_COUNT + FMA_AUDIO_COUNT))
+
+if [ $TOTAL_AUDIO_FILES -eq 0 ]; then
+    echo ""
+    echo "❌ ERROR: No audio files found!"
+    echo "   Cannot train without audio data"
+    echo "   Please ensure:"
+    echo "     1. FMA data is downloaded (Phase 0)"
+    echo "     2. Augmented audio was generated (Phase 1)"
+    conda deactivate
+    exit 1
+elif [ $TOTAL_AUDIO_FILES -lt $TOTAL_ROWS ]; then
+    echo ""
+    echo "⚠️  WARNING: Audio files ($TOTAL_AUDIO_FILES) < CSV rows ($TOTAL_ROWS)"
+    echo "   Some samples may use fallback/zero audio during training"
+    echo "   This is acceptable but not ideal for model quality"
+else
+    echo "  ✅ Sufficient audio files available for training"
+fi
+
+echo ""
+echo "✅ Dataset verification complete - ready for training!"
+
+# Run detailed dataset verification script
+echo ""
+echo "🔍 Running detailed dataset verification..."
+
+if [ -f "$PROJECT_DIR/verify_dataset.py" ]; then
+    python -u verify_dataset.py --csv "$OUTPUT_DIR/mts_final_dataset.csv" --max-check 50
+
+    VERIFY_EXIT=$?
+
+    if [ $VERIFY_EXIT -ne 0 ]; then
+        echo ""
+        echo "⚠️  WARNING: Dataset verification detected issues"
+        echo "   Training will proceed but may use fallback audio for missing files"
+        echo "   Model quality may be impacted"
+        echo ""
+        echo "   Continuing in 5 seconds... (Ctrl+C to abort)"
+        sleep 5
+    else
+        echo "✅ Dataset verification passed"
+    fi
+else
+    echo "⚠️  verify_dataset.py not found, skipping detailed verification"
+fi
+
 # Training configuration
 BATCH_SIZE=8
 EPOCHS=200
 LR=1e-4
 SAVE_EVERY=20
 
+echo ""
 echo "Training Configuration:"
 echo "  Batch size: $BATCH_SIZE"
 echo "  Epochs: $EPOCHS"
@@ -520,6 +795,7 @@ echo "Node: $SLURM_NODELIST"
 echo "End Time: $(date)"
 echo ""
 echo "Phase Results:"
+echo "  0. FMA Data Check:    $([ \"$FMA_DATA_READY\" = true ] && echo '✅ SUCCESS' || echo '⚠️  INCOMPLETE')"
 echo "  1. Data Preparation:  $([ $DATA_PREP_EXIT_CODE -eq 0 ] && echo '✅ SUCCESS' || echo '❌ FAILED')"
 echo "  2. Model Training:    $([ $TRAIN_EXIT_CODE -eq 0 ] && echo '✅ SUCCESS' || echo '❌ FAILED')"
 echo "  3. Sample Generation: $([ $GEN_EXIT_CODE -eq 0 ] && echo '✅ SUCCESS' || echo '⚠️  SKIPPED/FAILED')"

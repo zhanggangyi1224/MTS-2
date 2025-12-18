@@ -51,14 +51,22 @@ if device.type == "cuda":
 
 print("=" * 70)
 
-# Dataset class (same as local version but with better error handling)
+# Dataset class with path verification and better error handling
 class MTSDataset(Dataset):
-    def __init__(self, csv_path, split='train', sample_rate=24000):
+    def __init__(self, csv_path, split='train', sample_rate=24000, verify_paths=True):
         self.sample_rate = sample_rate
         self.split = split
+        self.csv_path = csv_path
 
         # Load CSV
+        print(f"📖 Loading dataset from: {csv_path}")
         df = pd.read_csv(csv_path)
+
+        # Verify audio_path column exists
+        if 'audio_path' not in df.columns:
+            raise ValueError(f"❌ ERROR: CSV missing 'audio_path' column!\n"
+                           f"   Available columns: {list(df.columns)}\n"
+                           f"   Please regenerate CSV with: python regenerate_dataset_csv.py")
 
         # Create splits
         from sklearn.model_selection import train_test_split
@@ -75,20 +83,76 @@ class MTSDataset(Dataset):
         self.samples = selected_df.to_dict('records')
         print(f"✅ Loaded {split} set: {len(self.samples)} samples")
 
+        # Verify audio file paths if requested
+        if verify_paths:
+            self._verify_audio_paths()
+
+    def _verify_audio_paths(self):
+        """Verify that audio files exist at the specified paths"""
+        print(f"\n🔍 Verifying audio file paths for {self.split} set...")
+
+        missing_files = []
+        empty_paths = []
+        valid_files = 0
+
+        # Check a sample of files (first 10 to avoid long delays)
+        sample_size = min(10, len(self.samples))
+
+        for i, sample in enumerate(self.samples[:sample_size]):
+            audio_path = sample.get('audio_path', '')
+
+            if not audio_path:
+                empty_paths.append(sample.get('id', f'sample_{i}'))
+            elif not Path(audio_path).exists():
+                missing_files.append((sample.get('id', f'sample_{i}'), audio_path))
+            else:
+                valid_files += 1
+
+        # Report results
+        if empty_paths:
+            print(f"⚠️  WARNING: {len(empty_paths)} samples with empty audio_path in sample check")
+            print(f"   Examples: {empty_paths[:3]}")
+            print(f"   This will cause samples to use fallback/zero audio")
+
+        if missing_files:
+            print(f"⚠️  WARNING: {len(missing_files)} files not found in sample check")
+            for sample_id, path in missing_files[:3]:
+                print(f"   - {sample_id}: {path}")
+            print(f"\n💡 Possible fixes:")
+            print(f"   1. Check if FMA data is downloaded to correct location")
+            print(f"   2. Verify augmented audio was generated")
+            print(f"   3. Regenerate CSV: python regenerate_dataset_csv.py")
+
+        if valid_files > 0:
+            print(f"✅ {valid_files}/{sample_size} sample files verified successfully")
+        else:
+            print(f"❌ ERROR: No valid audio files found!")
+            print(f"   Cannot proceed with training")
+            raise FileNotFoundError(f"No audio files found at paths specified in CSV")
+
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         sample = self.samples[idx]
+        sample_id = sample.get('id', f'sample_{idx}')
 
         try:
             # Load audio
             audio_path = sample.get('audio_path', '')
-            if Path(audio_path).exists():
+
+            # Check if path is empty
+            if not audio_path:
+                print(f"⚠️  Error loading sample {idx} ({sample_id}): Empty audio_path")
+                # Generate zero audio as fallback
+                audio = np.zeros(30 * self.sample_rate)
+                sr = self.sample_rate
+            elif Path(audio_path).exists():
+                # Load the audio file
                 audio, sr = sf.read(audio_path)
             else:
-                # Fallback: try to load from original path
-                audio_id = sample.get('id', '')
+                # File doesn't exist - log detailed error
+                print(f"⚠️  Error loading sample {idx} ({sample_id}): File not found '{audio_path}'")
                 # Generate zero audio as fallback
                 audio = np.zeros(30 * self.sample_rate)
                 sr = self.sample_rate
@@ -113,16 +177,16 @@ class MTSDataset(Dataset):
             return {
                 'audio': audio_tensor,
                 'text': text_prompt,
-                'id': sample.get('id', f'sample_{idx}')
+                'id': sample_id
             }
 
         except Exception as e:
             # Return dummy data on error
-            print(f"⚠️  Error loading sample {idx}: {e}")
+            print(f"⚠️  Error loading sample {idx} ({sample_id}): {type(e).__name__}: {e}")
             return {
                 'audio': torch.randn(1, 30 * self.sample_rate) * 0.01,
                 'text': '',
-                'id': f'error_{idx}'
+                'id': f'error_{sample_id}'
             }
 
 
