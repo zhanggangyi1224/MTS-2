@@ -7,19 +7,26 @@ Your HPC has **TWO NEW ERRORS** that have now been fixed:
 1. ❌ `ERROR: Can not combine '--user' and '--prefix'` (pip installation failing)
 2. ❌ `RuntimeError: Error(s) in loading state_dict` (checkpoint incompatible)
 
-## What Was Fixed (Latest Commit: fbc2ce3)
+## What Was Fixed (Latest Commit: aea18d1)
 
-### Fix 1: pip Installation Conflict
+### Fix 1: Auto-Detect CCMusic CSV (CRITICAL - NEW!)
+- **Problem:** HPC has CCMusic CSV with empty audio paths but SLURM skips regeneration
+- **Solution:** Auto-detect CCMusic IDs in CSV, delete and regenerate with FMA data
+- **Result:** Phase 1 runs automatically, creates fresh FMA dataset
+
+### Fix 2: pip Installation Conflict
 - **Problem:** pip tries to use `--user` and `--prefix` together
 - **Solution:** Added `export PIP_USER=false` to disable `--user` flag
 - **Result:** Packages install successfully to project directory
 
-### Fix 2: Checkpoint Loading Crash
+### Fix 3: Checkpoint Loading Crash
 - **Problem:** Old checkpoint has different model architecture
 - **Solution:** Use `strict=False` when loading, fallback to scratch if incompatible
 - **Result:** Training continues gracefully (partial weights or fresh start)
 
 ## Quick Fix Commands (Copy & Paste)
+
+**IMPORTANT:** With the latest fix (aea18d1), you NO LONGER need to manually delete the CSV! The SLURM script will auto-detect CCMusic data and regenerate.
 
 ```bash
 # 1. SSH to HPC
@@ -37,15 +44,14 @@ git pull origin main
 # 5. Delete old incompatible checkpoint (RECOMMENDED)
 rm -f checkpoints/mts_best.pt
 
-# 6. Delete broken CCMusic CSV
-rm -f outputs/mts_final_dataset.csv
-
-# 7. Resubmit job with all fixes
+# 6. Resubmit job - it will auto-detect and fix CCMusic CSV!
 sbatch mts_pipeline.slurm
 
-# 8. Monitor the new job
+# 7. Monitor the new job
 tail -f /data/gpfs/projects/punim2072/MTS/out/mts-complete-pipeline-*.out
 ```
+
+**Note:** Step 6 removed! The CSV deletion is now automatic.
 
 ## Verification After git pull
 
@@ -54,7 +60,7 @@ Check that you have all the latest fixes:
 ```bash
 # Check commit version
 git log --oneline -1
-# Should show: fbc2ce3 Fix pip --user conflict and checkpoint loading issues
+# Should show: aea18d1 Auto-detect and delete CCMusic CSV with empty audio paths
 
 # Check pip fix exists
 grep "PIP_USER" mts_pipeline.slurm
@@ -89,12 +95,13 @@ export PIP_USER=false
 NO MORE ERRORS! 🎉
 ```
 
-### Phase 1: Data Preparation
+### Phase 1: Data Preparation (AUTO-FIX!)
 ```
 📄 Found existing CSV: outputs/mts_final_dataset.csv
-⚠️  CSV exists but is INVALID (missing audio_path column)
-   This CSV was created by the old buggy version
+⚠️  CSV exists but contains CCMusic data (empty audio paths)
+   This CSV was created before FMA dataset switch
    Deleting and regenerating...
+   Old CSV backed up
 
 ⚠️  No processed data found, running data preparation...
 🎵 Loading FMA audio from fma_data/fma_small (50 files)...
@@ -103,6 +110,8 @@ NO MORE ERRORS! 🎉
 [Processing continues...]
 ✅ Phase 1 complete
 ```
+
+**Now fully automatic! No manual CSV deletion needed!** 🎉
 
 ### Phase 2: Training (FIXED)
 ```
@@ -141,7 +150,15 @@ Training proceeds successfully! 🎉
 
 Here's everything that's been fixed across all commits:
 
-### Commit fbc2ce3 (LATEST)
+### Commit aea18d1 (LATEST - AUTO-FIX!)
+- ✅ Auto-detect CCMusic CSV with empty audio paths
+- ✅ Automatic backup and regeneration with FMA data
+- ✅ No manual CSV deletion needed!
+
+### Commit 81f75e8
+- ✅ Add documentation for pip and checkpoint fixes
+
+### Commit fbc2ce3
 - ✅ Fix pip `--user` and `--prefix` conflict
 - ✅ Fix checkpoint loading with architecture mismatch
 - ✅ Graceful fallback to fresh start if checkpoint incompatible
@@ -252,13 +269,19 @@ For more details, see:
 
 ## Bottom Line
 
-**Three commands to fix everything:**
+**Just TWO commands to fix everything:** (CSV deletion is now automatic!)
 
 ```bash
 cd /data/gpfs/projects/punim2072/MTS/MTS/MTS-2
 git pull origin main
-rm -f checkpoints/mts_best.pt outputs/mts_final_dataset.csv
+rm -f checkpoints/mts_best.pt  # Only need to delete checkpoint
 sbatch mts_pipeline.slurm
 ```
+
+The SLURM script will automatically:
+- ✅ Detect CCMusic CSV
+- ✅ Backup old CSV
+- ✅ Regenerate with FMA data
+- ✅ Train successfully
 
 That's it! 🚀
