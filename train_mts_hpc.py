@@ -302,12 +302,30 @@ best_val_loss = float('inf')
 
 if args.resume:
     print(f"\n📥 Resuming from checkpoint: {args.resume}")
-    checkpoint = torch.load(args.resume, map_location=device)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-    start_epoch = checkpoint['epoch'] + 1
-    best_val_loss = checkpoint.get('val_loss', float('inf'))
-    print(f"✅ Resumed from epoch {start_epoch}")
+    try:
+        checkpoint = torch.load(args.resume, map_location=device)
+
+        # Try to load state dict with strict=False to handle model architecture changes
+        missing_keys, unexpected_keys = model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+
+        if missing_keys or unexpected_keys:
+            print(f"⚠️  Checkpoint has different model architecture:")
+            if missing_keys:
+                print(f"   Missing keys: {len(missing_keys)} (new model has these, checkpoint doesn't)")
+            if unexpected_keys:
+                print(f"   Unexpected keys: {len(unexpected_keys)} (checkpoint has these, new model doesn't)")
+            print(f"   Continuing with partial weights loaded...")
+
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        start_epoch = checkpoint['epoch'] + 1
+        best_val_loss = checkpoint.get('val_loss', float('inf'))
+        print(f"✅ Resumed from epoch {start_epoch}")
+
+    except Exception as e:
+        print(f"⚠️  Warning: Could not load checkpoint: {e}")
+        print(f"   Starting training from scratch instead...")
+        start_epoch = 0
+        best_val_loss = float('inf')
 
 # Create checkpoint directory
 Path(args.checkpoint_dir).mkdir(exist_ok=True)

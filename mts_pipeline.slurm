@@ -109,6 +109,9 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Version: $(python --version)"
 
 # Install packages
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing packages..."
+
+# CRITICAL: Disable --user flag to avoid conflict with --prefix
+export PIP_USER=false
 pip install --upgrade pip setuptools wheel
 
 # Install PyTorch 2.1.2 with CUDA 11.8 for H100 support
@@ -739,7 +742,8 @@ mkdir -p $PROJECT_DIR/generated_samples
 # Check for existing checkpoint to resume from
 if [ -f "$PROJECT_DIR/checkpoints/mts_best.pt" ]; then
     echo "⚠️  Found existing checkpoint: checkpoints/mts_best.pt"
-    echo "   Training will resume from this checkpoint"
+    echo "   Checkpoint may be from old model architecture"
+    echo "   Training will attempt to resume (will start fresh if incompatible)"
     RESUME_FLAG="--resume $PROJECT_DIR/checkpoints/mts_best.pt"
 else
     echo "✅ Starting training from scratch"
