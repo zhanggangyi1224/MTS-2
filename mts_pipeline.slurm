@@ -110,6 +110,15 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Version: $(python --version)"
 # Install packages
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing packages..."
 
+# CRITICAL: Clean up corrupted packages in home directory
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cleaning up corrupted home directory packages..."
+if [ -d "$HOME/.local/lib/python3.10/site-packages" ]; then
+    # Remove corrupted sentence-transformers and torch installations
+    rm -rf "$HOME/.local/lib/python3.10/site-packages/sentence_transformers"* 2>/dev/null || true
+    rm -rf "$HOME/.local/lib/python3.10/site-packages/-orch"* 2>/dev/null || true
+    echo "  ✅ Cleaned up corrupted packages"
+fi
+
 # CRITICAL: Disable --user flag to avoid conflict with --prefix
 export PIP_USER=false
 pip install --upgrade pip setuptools wheel
