@@ -12,7 +12,7 @@
 #SBATCH --partition=gpu-h100
 #SBATCH --gres=gpu:1
 #SBATCH -c 8
-#SBATCH --mem=64G
+#SBATCH --mem=128G
 #SBATCH -t 7-00:00:00
 #SBATCH -J mts-complete-pipeline
 #SBATCH -o /data/gpfs/projects/punim2072/MTS/out/%x-%j.out
@@ -134,38 +134,38 @@ pip install --upgrade pip setuptools wheel
 
 # Install PyTorch 2.1.2 with CUDA 11.8 for H100 support
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing PyTorch for H100..."
-pip install --prefix $PIP_PREFIX torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
+pip install --prefix $PIP_PREFIX --ignore-installed torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
 
-# Install base requirements
+# Install base requirements - ignore HPC module packages to avoid read-only errors
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing base requirements..."
-pip install --prefix $PIP_PREFIX -r $PROJECT_DIR/requirements.txt --exists-action i
+pip install --prefix $PIP_PREFIX --ignore-installed -r $PROJECT_DIR/requirements.txt --exists-action i
 
 # Install complete requirements (model dependencies)
 if [ -f "$PROJECT_DIR/requirements_complete.txt" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing complete requirements..."
-    pip install --prefix $PIP_PREFIX -r $PROJECT_DIR/requirements_complete.txt --exists-action i || true
+    pip install --prefix $PIP_PREFIX --ignore-installed -r $PROJECT_DIR/requirements_complete.txt --exists-action i || true
 fi
 
 # CRITICAL: Install einops explicitly (needed by diffusion_unet.py)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing model dependencies..."
-pip install --prefix $PIP_PREFIX einops>=0.6.0
-pip install --prefix $PIP_PREFIX encodec>=0.1.1 || echo "[WARNING] encodec install failed - will use mock tokenization"
-pip install --prefix $PIP_PREFIX pydub>=0.25.1
+pip install --prefix $PIP_PREFIX --ignore-installed einops>=0.6.0
+pip install --prefix $PIP_PREFIX --ignore-installed encodec>=0.1.1 || echo "[WARNING] encodec install failed - will use mock tokenization"
+pip install --prefix $PIP_PREFIX --ignore-installed pydub>=0.25.1
 
 # Install psutil for memory management
-pip install --prefix $PIP_PREFIX psutil
+pip install --prefix $PIP_PREFIX --ignore-installed psutil
 
 # Enforce compatible transformers/sentence-transformers versions
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Reinstalling transformers stack..."
 pip uninstall -y transformers sentence-transformers >/dev/null 2>&1 || true
-pip install --prefix $PIP_PREFIX "transformers==4.36.0" "sentence-transformers==2.2.2"
+pip install --prefix $PIP_PREFIX --ignore-installed "transformers==4.36.0" "sentence-transformers==2.2.2"
 
 # Install optional packages (continue on failure)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing optional packages..."
-pip install --prefix $PIP_PREFIX Cython>=0.29.0 2>/dev/null || true
-pip install --prefix $PIP_PREFIX madmom>=0.16.1 --no-build-isolation 2>/dev/null || echo "[WARNING] madmom failed - will use librosa fallback"
-pip install --prefix $PIP_PREFIX pyrubberband>=0.3.0 2>/dev/null || echo "[WARNING] pyrubberband failed - will use librosa fallback"
-pip install --prefix $PIP_PREFIX pedalboard>=0.7.0 2>/dev/null || echo "[WARNING] pedalboard failed - will use basic effects"
+pip install --prefix $PIP_PREFIX --ignore-installed Cython>=0.29.0 2>/dev/null || true
+pip install --prefix $PIP_PREFIX --ignore-installed madmom>=0.16.1 --no-build-isolation 2>/dev/null || echo "[WARNING] madmom failed - will use librosa fallback"
+pip install --prefix $PIP_PREFIX --ignore-installed pyrubberband>=0.3.0 2>/dev/null || echo "[WARNING] pyrubberband failed - will use librosa fallback"
+pip install --prefix $PIP_PREFIX --ignore-installed pedalboard>=0.7.0 2>/dev/null || echo "[WARNING] pedalboard failed - will use basic effects"
 
 echo "================================"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Verifying installations..."
