@@ -140,15 +140,15 @@ pip install --prefix $PIP_PREFIX torch==2.1.2 torchaudio==2.1.2 --index-url http
     pip install --prefix $PIP_PREFIX --no-cache-dir torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
 }
 
-# Install base requirements - Let pip handle dependencies
-# HPC module packages (tqdm, PyYAML, scipy, matplotlib, h5py) will be skipped automatically
+# Install base requirements - Ignore HPC module packages to avoid read-only errors
+# HPC module packages (tqdm, PyYAML, scipy, matplotlib, h5py, psutil) will be used from modules
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing base requirements..."
-pip install --prefix $PIP_PREFIX -r $PROJECT_DIR/requirements.txt --exists-action i
+pip install --prefix $PIP_PREFIX --ignore-installed -r $PROJECT_DIR/requirements.txt --exists-action i 2>&1 | grep -v "Requirement already satisfied" || true
 
 # Install complete requirements (model dependencies)
 if [ -f "$PROJECT_DIR/requirements_complete.txt" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing complete requirements..."
-    pip install --prefix $PIP_PREFIX -r $PROJECT_DIR/requirements_complete.txt --exists-action i || true
+    pip install --prefix $PIP_PREFIX --ignore-installed -r $PROJECT_DIR/requirements_complete.txt --exists-action i 2>&1 | grep -v "Requirement already satisfied" || true
 fi
 
 # CRITICAL: Install einops explicitly (needed by diffusion_unet.py)
