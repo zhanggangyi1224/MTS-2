@@ -15,9 +15,10 @@ scikit-learn>=1.0.0
 # PYTORCH & CUDA
 # =============================================================================
 # Install separately with proper CUDA version:
-# pip install torch==2.1.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
-torch>=2.0.0
-torchaudio>=2.0.0
+# pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
+# Pin to 2.1.2 to match CUDA 11.8 and H100 compatibility
+torch==2.1.2
+torchaudio==2.1.2
 
 # =============================================================================
 # AUDIO PROCESSING
