@@ -61,13 +61,17 @@ export CACHE_DIR=$PROJECT_DIR/cache
 export DATA_DIR=$PROJECT_DIR/data
 export OUTPUT_DIR=$PROJECT_DIR/outputs
 export PIP_PREFIX=$PROJECT_DIR/packages
-export PYTHONPATH=$PIP_PREFIX/lib/python3.11/site-packages:$PROJECT_DIR:$PROJECT_DIR/src:$PYTHONPATH
+
+# Detect Python version dynamically to set correct site-packages path
+PYTHON_VERSION=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.10")
+export PYTHONPATH=$PIP_PREFIX/lib/python${PYTHON_VERSION}/site-packages:$PROJECT_DIR:$PROJECT_DIR/src:$PYTHONPATH
 export PYTHONUNBUFFERED=1
 export CUDA_VISIBLE_DEVICES=0
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Environment setup complete"
 echo "  PROJECT_DIR: $PROJECT_DIR"
 echo "  PIP_PREFIX: $PIP_PREFIX"
+echo "  PYTHON_VERSION: $PYTHON_VERSION"
 echo "  PYTHONPATH: $PYTHONPATH"
 
 # Create directories (including audio output directory and package directory)
