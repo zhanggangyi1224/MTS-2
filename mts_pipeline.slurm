@@ -124,6 +124,10 @@ fi
 # Also set PYTHONNOUSERSITE to completely ignore user site-packages
 export PYTHONNOUSERSITE=1
 
+# CRITICAL: Reinstall pip in conda environment first
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ensuring pip is available in conda environment..."
+conda install -y pip setuptools wheel
+
 # CRITICAL: Disable --user flag to avoid conflict with --prefix
 export PIP_USER=false
 pip install --upgrade pip setuptools wheel
