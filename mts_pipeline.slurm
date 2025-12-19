@@ -163,6 +163,10 @@ pip install --prefix $PIP_PREFIX pydub>=0.25.1
 
 # Note: psutil, tqdm, PyYAML, scipy, matplotlib, h5py provided by HPC modules
 
+# CRITICAL: Remove conflicting 'decoders' package that breaks transformers
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Removing conflicting packages..."
+pip uninstall -y decoders >/dev/null 2>&1 || true
+
 # Enforce compatible transformers/sentence-transformers versions
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Reinstalling transformers stack..."
 pip uninstall -y transformers sentence-transformers >/dev/null 2>&1 || true
