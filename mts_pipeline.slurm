@@ -135,17 +135,20 @@ pip install --upgrade pip setuptools wheel
 
 # Install PyTorch 2.1.2 with CUDA 11.8 for H100 support
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing PyTorch for H100..."
-pip install --prefix $PIP_PREFIX torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
+pip install --prefix $PIP_PREFIX torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118 || {
+    echo "⚠️  PyTorch installation failed, retrying..."
+    pip install --prefix $PIP_PREFIX --no-cache-dir torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
+}
 
 # Install base requirements - Let pip handle dependencies
 # HPC module packages (tqdm, PyYAML, scipy, matplotlib, h5py) will be skipped automatically
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing base requirements..."
-pip install --prefix $PIP_PREFIX -r $PROJECT_DIR/requirements.txt --exists-action i 2>&1 | grep -v "Requirement already satisfied" || true
+pip install --prefix $PIP_PREFIX -r $PROJECT_DIR/requirements.txt --exists-action i
 
 # Install complete requirements (model dependencies)
 if [ -f "$PROJECT_DIR/requirements_complete.txt" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing complete requirements..."
-    pip install --prefix $PIP_PREFIX -r $PROJECT_DIR/requirements_complete.txt --exists-action i 2>&1 | grep -v "Requirement already satisfied" || true
+    pip install --prefix $PIP_PREFIX -r $PROJECT_DIR/requirements_complete.txt --exists-action i || true
 fi
 
 # CRITICAL: Install einops explicitly (needed by diffusion_unet.py)
@@ -159,7 +162,10 @@ pip install --prefix $PIP_PREFIX pydub>=0.25.1
 # Enforce compatible transformers/sentence-transformers versions
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Reinstalling transformers stack..."
 pip uninstall -y transformers sentence-transformers >/dev/null 2>&1 || true
-pip install --prefix $PIP_PREFIX "transformers==4.36.0" "sentence-transformers==2.2.2"
+pip install --prefix $PIP_PREFIX "transformers==4.36.0" "sentence-transformers==2.2.2" || {
+    echo "⚠️  Transformers installation failed, retrying with --no-cache-dir..."
+    pip install --prefix $PIP_PREFIX --no-cache-dir "transformers==4.36.0" "sentence-transformers==2.2.2"
+}
 
 # Install optional packages (continue on failure)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing optional packages..."
@@ -176,6 +182,7 @@ print('Python:', sys.version)
 
 # Core packages
 print('\\n--- Core Packages ---')
+missing_packages = []
 required = ['numpy', 'pandas', 'librosa', 'transformers', 'datasets', 'scipy', 'torchaudio', 'soundfile']
 for pkg in required:
     try:
@@ -183,6 +190,7 @@ for pkg in required:
         print(f'{pkg}: OK')
     except ImportError:
         print(f'{pkg}: MISSING')
+        missing_packages.append(pkg)
 
 # PyTorch and CUDA
 print('\\n--- PyTorch ---')
@@ -204,6 +212,14 @@ for pkg in model_deps:
         print(f'{pkg}: OK')
     except ImportError:
         print(f'{pkg}: MISSING (optional for data pipeline)')
+
+# Exit if critical packages are missing
+if missing_packages:
+    print(f'\\n❌ ERROR: Critical packages missing: {missing_packages}')
+    print('Package installation failed. Check pip install commands above.')
+    sys.exit(1)
+else:
+    print('\\n✅ All critical packages installed successfully!')
 
 # Check ffmpeg
 import shutil
