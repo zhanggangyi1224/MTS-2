@@ -115,18 +115,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Version: $(python --version)"
 # Install packages
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing packages..."
 
-# CRITICAL: Clean up ALL corrupted packages in home directory
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cleaning up corrupted home directory packages..."
-if [ -d "$HOME/.local/lib/python3.10/site-packages" ]; then
-    # Remove ALL packages from home directory to avoid conflicts
-    # This is safe because we're installing to $PIP_PREFIX instead
-    echo "  Removing corrupted packages from ~/.local..."
-    rm -rf "$HOME/.local/lib/python3.10/site-packages/"* 2>/dev/null || true
-    rm -rf "$HOME/.local/bin/"pip* 2>/dev/null || true
-    echo "  ✅ Cleaned up home directory packages"
-fi
-
-# Also set PYTHONNOUSERSITE to completely ignore user site-packages
+# Set PYTHONNOUSERSITE to completely ignore user site-packages
 export PYTHONNOUSERSITE=1
 
 # CRITICAL: Reinstall pip in conda environment first
