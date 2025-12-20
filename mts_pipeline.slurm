@@ -60,27 +60,20 @@ export PROJECT_DIR=${SLURM_SUBMIT_DIR:-/data/gpfs/projects/punim2072/MTS/MTS/MTS
 export CACHE_DIR=$PROJECT_DIR/cache
 export DATA_DIR=$PROJECT_DIR/data
 export OUTPUT_DIR=$PROJECT_DIR/outputs
-export PIP_PREFIX=$PROJECT_DIR/packages
-
-# Detect Python version dynamically to set correct site-packages path
-PYTHON_VERSION=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.10")
-export PYTHONPATH=$PIP_PREFIX/lib/python${PYTHON_VERSION}/site-packages:$PROJECT_DIR:$PROJECT_DIR/src:$PYTHONPATH
+export PYTHONPATH=$PROJECT_DIR:$PROJECT_DIR/src:$PYTHONPATH
 export PYTHONUNBUFFERED=1
 export CUDA_VISIBLE_DEVICES=0
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Environment setup complete"
 echo "  PROJECT_DIR: $PROJECT_DIR"
-echo "  PIP_PREFIX: $PIP_PREFIX"
-echo "  PYTHON_VERSION: $PYTHON_VERSION"
 echo "  PYTHONPATH: $PYTHONPATH"
 
-# Create directories (including audio output directory and package directory)
+# Create directories (including audio output directory)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Creating directories..."
 mkdir -p /data/gpfs/projects/punim2072/MTS/{out,err}
-mkdir -p $PROJECT_DIR/{data,outputs,logs,checkpoints,packages}
+mkdir -p $PROJECT_DIR/{data,outputs,logs,checkpoints}
 mkdir -p $DATA_DIR/{raw,processed,augmented,augmented/audio}
 mkdir -p $OUTPUT_DIR/{configurations,statistics,structure,augmentation}
-mkdir -p $PIP_PREFIX/lib/python3.11/site-packages
 
 # Verify audio output directory
 if [ -d "$DATA_DIR/augmented/audio" ]; then
@@ -122,54 +115,53 @@ export PYTHONNOUSERSITE=1
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Ensuring pip is available in conda environment..."
 conda install -y pip setuptools wheel
 
-# CRITICAL: Disable --user flag to avoid conflict with --prefix
+# CRITICAL: Disable --user flag
 export PIP_USER=false
 pip install --upgrade pip setuptools wheel
 
-# Install PyTorch 2.1.2 with CUDA 11.8 for H100 support
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing PyTorch for H100..."
-pip install --prefix $PIP_PREFIX torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118 || {
-    echo "⚠️  PyTorch installation failed, retrying..."
-    pip install --prefix $PIP_PREFIX --no-cache-dir torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu118
+# CRITICAL: Clean install of PyTorch to avoid version conflicts
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cleaning conflicting packages..."
+pip uninstall -y torch torchvision torchaudio tokenizers transformers decoders 2>/dev/null || true
+
+# Install PyTorch 2.1.2 with CUDA 11.8 for H100 support (directly to conda env)
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing PyTorch 2.1.2 for H100..."
+pip install torch==2.1.2 torchaudio==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cu118 || {
+    echo "⚠️  PyTorch installation failed, retrying with --no-cache-dir..."
+    pip install --no-cache-dir torch==2.1.2 torchaudio==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cu118
 }
 
-# Install base requirements - Ignore HPC module packages to avoid read-only errors
+# Install base requirements (directly to conda env)
 # HPC module packages (tqdm, PyYAML, scipy, matplotlib, h5py, psutil) will be used from modules
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing base requirements..."
-pip install --prefix $PIP_PREFIX --ignore-installed -r $PROJECT_DIR/requirements.txt --exists-action i 2>&1 | grep -v "Requirement already satisfied" || true
+pip install -r $PROJECT_DIR/requirements.txt 2>&1 | grep -v "Requirement already satisfied" || true
 
 # Install complete requirements (model dependencies)
 if [ -f "$PROJECT_DIR/requirements_complete.txt" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing complete requirements..."
-    pip install --prefix $PIP_PREFIX --ignore-installed -r $PROJECT_DIR/requirements_complete.txt --exists-action i 2>&1 | grep -v "Requirement already satisfied" || true
+    pip install -r $PROJECT_DIR/requirements_complete.txt 2>&1 | grep -v "Requirement already satisfied" || true
 fi
 
-# CRITICAL: Install einops explicitly (needed by diffusion_unet.py)
+# Install model dependencies
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing model dependencies..."
-pip install --prefix $PIP_PREFIX einops>=0.6.0
-pip install --prefix $PIP_PREFIX encodec>=0.1.1 || echo "[WARNING] encodec install failed - will use mock tokenization"
-pip install --prefix $PIP_PREFIX pydub>=0.25.1
+pip install einops>=0.6.0
+pip install encodec>=0.1.1 || echo "[WARNING] encodec install failed - will use mock tokenization"
+pip install pydub>=0.25.1
 
 # Note: psutil, tqdm, PyYAML, scipy, matplotlib, h5py provided by HPC modules
 
-# CRITICAL: Remove conflicting 'decoders' package that breaks transformers
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Removing conflicting packages..."
-pip uninstall -y decoders >/dev/null 2>&1 || true
-
-# Enforce compatible transformers/sentence-transformers versions
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Reinstalling transformers stack..."
-pip uninstall -y transformers sentence-transformers >/dev/null 2>&1 || true
-pip install --prefix $PIP_PREFIX "transformers==4.36.0" "sentence-transformers==2.2.2" || {
+# Reinstall transformers stack with matched tokenizers version
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing transformers stack..."
+pip install tokenizers==0.15.2 transformers==4.36.0 sentence-transformers==2.2.2 || {
     echo "⚠️  Transformers installation failed, retrying with --no-cache-dir..."
-    pip install --prefix $PIP_PREFIX --no-cache-dir "transformers==4.36.0" "sentence-transformers==2.2.2"
+    pip install --no-cache-dir tokenizers==0.15.2 transformers==4.36.0 sentence-transformers==2.2.2
 }
 
 # Install optional packages (continue on failure)
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing optional packages..."
-pip install --prefix $PIP_PREFIX Cython>=0.29.0 2>/dev/null || true
-pip install --prefix $PIP_PREFIX madmom>=0.16.1 --no-build-isolation 2>/dev/null || echo "[WARNING] madmom failed - will use librosa fallback"
-pip install --prefix $PIP_PREFIX pyrubberband>=0.3.0 2>/dev/null || echo "[WARNING] pyrubberband failed - will use librosa fallback"
-pip install --prefix $PIP_PREFIX pedalboard>=0.7.0 2>/dev/null || echo "[WARNING] pedalboard failed - will use basic effects"
+pip install Cython>=0.29.0 2>/dev/null || true
+pip install madmom>=0.16.1 --no-build-isolation 2>/dev/null || echo "[WARNING] madmom failed - will use librosa fallback"
+pip install pyrubberband>=0.3.0 2>/dev/null || echo "[WARNING] pyrubberband failed - will use librosa fallback"
+pip install pedalboard>=0.7.0 2>/dev/null || echo "[WARNING] pedalboard failed - will use basic effects"
 
 echo "================================"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Verifying installations..."
